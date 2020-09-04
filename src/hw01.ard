@@ -67,4 +67,8 @@
 
 \func mod (x y : Nat) => x - y * div x y
 
-\func gcd (x y : Nat) => {?}
+\func gcd (x y : Nat) : Nat => gcd' y x y
+  \where
+    \func gcd' (s x y : Nat) : Nat \elim s
+      | 0 => x
+      | suc s => if (y < 1) Nat x (gcd' s y (x `mod` y))
