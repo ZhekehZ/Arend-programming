@@ -8,16 +8,24 @@
   | suc x, 0 => false
   | suc x, suc y => x < y
 
-\func lookup {A : \Type} (xs : List A) (i : Nat) (p : T (i < length xs)) : Maybe A \elim xs, i
-  | nil, _ => nothing
-  | cons a xs, 0 => just a
+\func lookup {A : \Type} (xs : List A) (i : Nat) (p : T (i < length xs)) : A \elim xs, i
+  | nil, 0 => absurd p
+  | nil, suc i => absurd p
+  | cons a xs, 0 => a
   | cons a xs, suc i => lookup xs i p
+  \where {
+    \func absurd {A : \Type} (x : Empty) : A
+  }
 
 -- 2. Реализуйте аналоги функции replicate для vec и Vec (эта функция создает список заданной длины, состоящий из повторений данного элемента).
 
-\func replicate {A : \Type} (x : A) (n : Nat) : Vec A n \elim n
+\func replicate'vec {A : \Type} (x : A) (n : Nat) : vec A n \elim n
+  | 0 => ()
+  | suc n => (x, replicate'vec x n)
+
+\func replicate'Vec {A : \Type} (x : A) (n : Nat) : Vec A n \elim n
   | 0 => vnil
-  | suc n => vcons x (replicate x n)
+  | suc n => vcons x (replicate'Vec x n)
 
 -- 3. Реализуйте аналоги функции map для vec и Vec.
 
@@ -68,18 +76,14 @@
 --    Высота листа равна 0.
 
 \data Tree (A : \Type) (n : Nat) \elim n
-  | 0 => tree-list
-  | suc n => {
-      | tree-empty-node
-      | tree-node (Tree A n) A (Tree A n)
-  }
+  | _ => tree-list
+  | suc n => tree-node (Tree A n) A (Tree A n)
 
 -- определите функцию, возвращающую высоту дерева.
 
 \func height {A : \Type} {n : Nat} (t : Tree A n) : Fin (suc n) \elim n, t
-  | 0, _ => fzero
-  | suc _, tree-empty-node => fzero
-  | suc n, tree-node l _ r => fsuc (max (height l) (height r))
+  | _, tree-list => fzero
+  | suc n, tree-node l a r => fsuc (max (height l) (height r))
   \where {
     \func max {n : Nat} (a b : Fin n) : Fin n \elim n, a, b
       | suc n, fzero, x => x
@@ -98,39 +102,103 @@
 \import Utils
 \import lect03 \hiding (Vec,vnil,vcons)
 
-
-
-
--- Дальше пока не делал
-
-
-
-
 -- Optional task
 -- 11. Функции Fin n -> A соответствуют спискам элементов A длины n.
 --     Функция, преобразующая Vec A n в Fin n -> A, была реализована на лекции.
 --     Реализуйте обратную функцию.
 
-\func coin {A : \Type} {n : Nat} (f : Fin n -> A) : Vec A n => {?}
+\func coin {A : \Type} {n : Nat} (f : Fin n -> A) : Vec A n \elim n
+  | 0 => vnil
+  | suc n => vcons (f fzero) (coin (\lam x => f (fsuc x)))
+
+\module Coin-Test \where {
+  \func test-generator (x : Fin 5) : Nat
+    | fzero => 1
+    | fsuc fzero => 2
+    | fsuc (fsuc fzero) => 3
+    | fsuc (fsuc (fsuc fzero)) => 4
+    | fsuc (fsuc (fsuc (fsuc fzero))) => 5
+    | fsuc (fsuc (fsuc (fsuc (fsuc ()))))
+
+  \func test-vec : Vec Nat 5 => vcons 1 (vcons 2 (vcons 3 (vcons 4 (vcons 5 vnil))))
+
+  \func test-coin : coin test-generator = test-vec => idp
+}
 
 -- Optional task
 -- 12. Определите тип матриц и ряд функций над ними.
 
-\func Mat (A : \Type) (n m : Nat) : \Type => {?}
+\func Mat (A : \Type) (n m : Nat) : \Type => Fin n -> Fin m -> A
 
 -- диагональная матрица с элементами e на диагонали и z на остальных позициях.
 
-\func diag {A : \Type} (z e : A) (n : Nat) : Mat A n n => {?}
+\func diag {A : \Type} (z e : A) (n : Nat) : Mat A n n =>
+  \lam i j => ifeq (toNat i) (toNat j) e z
+  \where {
+    \func ifeq {A : \Type} (n m : Nat) (t f : A) : A \elim n, m
+      | suc n, suc m => ifeq n m t f
+      | 0, 0 => t
+      | _, _ => f
+  }
 
 -- транспонирование матриц
 
-\func transpose {A : \Type} {n m : Nat} (M : Mat A n m) : Mat A m n => {?}
+\func transpose {A : \Type} {n m : Nat} (M : Mat A n m) : Mat A m n =>
+  \lam i j => M j i
 
 -- сложение матриц
 
-\func matAdd {A : \Type} (add : A -> A -> A) (n m : Nat) (M N : Mat A n m) : Mat A n m => {?}
+\func matAdd {A : \Type} (add : A -> A -> A) {n m : Nat} (M N : Mat A n m) : Mat A n m =>
+  \lam i j => add (M i j) (N i j)
 
 -- умножение матриц
 
 -- z ─ нейтральный элемент по сложению.
-\func matMul {A : \Type} (z : A) (add mul : A -> A -> A) (n m k : Nat) (M : Mat A n m) (N : Mat A m k) : Mat A n k => {?}
+\func matMul {A : \Type} (z : A) (add mul : A -> A -> A) {n m k : Nat} (M : Mat A n m) (N : Mat A m k) : Mat A n k =>
+  \lam i j => \let | row => coin (M i)
+                   | col => coin (`N j)
+                   | pairs => zipWith'Vec row col
+              \in fold z (\lam x p => add x (mul p.1 p.2)) pairs
+  \where {
+    \func fold {A B : \Type} {n : Nat} (z : A) (f : A -> B -> A) (v : Vec B n) : A \elim n, v
+      | 0, vnil => z
+      | suc n, vcons a v => fold (f z a) f v
+  }
+
+\module Matrix-Test \where {
+  \open Nat (+, *)
+  \func M1 (i : Fin 3) (j : Fin 3) : Nat => toNat i * 3 + toNat j
+  {- 0 1 2
+     3 4 5
+     6 7 8
+  -}
+
+  \func M2 (i : Fin 3) (j : Fin 3) : Nat => toNat i * toNat j
+  {- 0 0 0
+     0 1 2
+     0 2 4
+  -}
+
+  \func M1*M2 (i : Fin 3) (j : Fin 3) : Nat
+    | _, fzero => 0
+    | i, j => (5 + toNat i * 9) * toNat j
+  {- 0 5 10
+     0 14 28
+     0 23 46
+  -}
+
+  \func test (i : Fin 3) (j : Fin 3) : matMul 0 (+) (*) M1 M2 i j = M1*M2 i j
+    | fzero, fzero => idp
+    | fzero, fsuc fzero => idp
+    | fsuc fzero, fzero => idp
+    | fsuc fzero, fsuc fzero => idp
+    | fsuc (fsuc fzero), fzero => idp
+    | fzero, fsuc (fsuc fzero) => idp
+    | fsuc (fsuc fzero), fsuc fzero => idp
+    | fsuc fzero, fsuc (fsuc fzero) => idp
+    | fsuc (fsuc fzero), fsuc (fsuc fzero) => idp
+    | fsuc (fsuc (fsuc ())), _
+    | fzero, fsuc (fsuc (fsuc ()))
+    | fsuc fzero, fsuc (fsuc (fsuc ()))
+    | fsuc (fsuc fzero), fsuc (fsuc (fsuc ()))
+}
