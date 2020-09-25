@@ -1,0 +1,179 @@
+\import Utils
+\open Nat \hiding (<=)
+
+\import lect04
+\import lect02 (not-isInvolution_)
+
+-- Part I: Доказательства при помощи симметричности и транзитивности
+
+-- 1. Докажите, что reverse (reverse xs) = xs, где reverse определен через ++.
+
+\data List (A : \Type) | nil | cons A (List A)
+
+\func \infixl 4 ++ {A : \Type} (xs ys : List A) : List A \elim xs
+| nil => ys
+| cons x xs => cons x (xs ++ ys)
+
+\func reverse {A : \Type} (xs : List A) : List A
+| nil => nil
+| cons x xs => reverse xs ++ cons x nil
+
+-- Это утверждение будет полезно для доказательства.
+\func reverse++ {A : \Type} (xs ys : List A) : reverse (xs ++ ys) = reverse ys ++ reverse xs \elim xs
+  | nil => ++nil (reverse ys)
+  | cons a xs => pmap (`++ cons a nil) (reverse++ xs ys) *>
+                 (++-assoc (reverse ys) (reverse xs) (cons a nil))
+\where {
+  \func ++nil {A : \Type} : \Pi (xs : List A) -> xs = xs ++ nil
+    => List-elim (\lam x => x = x ++ nil) idp (\lam x xs => pmap (cons x))
+
+  \func ++-assoc {A : \Type} (a b c : List A) : (a ++ b) ++ c = a ++ (b ++ c)
+    => List-elim (\lam a' => (a' ++ b) ++ c = a' ++ (b ++ c)) idp (\lam x _ => pmap (cons x)) a
+}
+
+\func reverse-isInvolutive {A : \Type} (xs : List A) : reverse (reverse xs) = xs
+  | nil => idp
+  | cons a xs => reverse++ (reverse xs) (cons a nil) *> (pmap (cons a) (reverse-isInvolutive xs))
+
+-- 2. Докажите дистрибутивность умножения над сложением для натуральных чисел (выберите 1 из двух вариантов).
+
+\func rdistr (n m k : Nat) : (m + k) * n = m * n + k * n \elim n
+  | 0 => idp
+  | suc n => (
+    (m + k) * suc n           ==< idp                                               >==
+    (m + k) * n + (m + k)     ==< pmap (`+ (m + k)) (rdistr n m k)                  >==
+    (m * n + k * n) + (m + k) ==< +-assoc (m * n) (k * n) (m + k)                   >==
+    m * n + (k * n + (m + k)) ==< pmap (\lam x => m * n + (k * n + x)) (+-comm m k) >==
+    m * n + (k * n + (k + m)) ==< pmap (m * n +) (sym (+-assoc (k * n) k m))        >==
+    m * n + ((k * n + k) + m) ==< idp                                               >==
+    m * n + (k * suc n + m)   ==< pmap (m * n +) (+-comm (k * suc n) m)             >==
+    m * n + (m + k * suc n)   ==< sym (+-assoc (m * n) m (k * suc n))               >==
+    (m * n + m) + k * suc n   ==< idp                                               >==
+    m * suc n + k * suc n     `qed
+  )
+
+\func ldistr (n m k : Nat) : n * (m + k) = n * m + n * k \elim  k
+  | 0 => idp
+  | suc k => (
+    n * (m + suc k)     ==< idp                        >==
+    n * suc (m + k)     ==< idp                        >==
+    n * (m + k) + n     ==< pmap (`+ n) (ldistr n m k) >==
+    (n * m + n * k) + n ==< +-assoc (n * m) (n * k) n  >==
+    n * m + (n * k + n) ==< idp                        >==
+    n * m + n * suc k   `qed
+  )
+
+-- Part II: Доказательства при помощи transport и функциональной экстенсиональности
+
+-- 3. Докажите, что (\lam x => not (not x)) = (\lam x => x).
+
+\func notNotId : (\lam x => not (not x)) = (\lam x => x)
+  => path (\lam i a => not-isInvolution_ a @ i)
+
+-- 4. Докажите, что 0 не равно suc x.
+
+\func zero/=suc (x : Nat) (p : 0 = suc x) : Empty
+  => true/=false (pmap (Nat-rec Bool true (\lam x y => false)) p) -- проверяем на равенство 0
+
+-- 5. Докажите, что fac не равен suc.
+
+\open Nat(*)
+
+\func fac (n : Nat) : Nat
+  | 0 => 1
+  | suc n => suc n * fac n
+
+\func fac/=suc (p : fac = suc) : Empty
+  => true/=false (pmap (\lam f => Nat-rec Bool false (\lam x y => not y) (f 1)) p) -- сравниваем четность на 1
+
+-- Part III: Элиминаторы и рекурсоры
+
+-- 6. Определите факториал через Nat-rec.
+
+\func factorial : Nat -> Nat => Nat-rec Nat 1 (\lam x y => suc x * y)
+
+\func factorial-Test-1 : factorial 0 = 1 => idp
+\func factorial-Test-2 : factorial 2 = 2 => idp
+\func factorial-Test-3 : factorial 5 = 120 => idp
+
+-- 7. Докажите ассоциативность сложения для натуральных чисел через Nat-elim.
+
+\func +-assoc (a b c : Nat) : (a + b) + c = a + (b + c)
+  => Nat-elim (\lam c' => (a + b) + c' = a + (b + c')) idp (\lam n p => pmap suc p) c
+
+-- 8. Определите рекурсор и элиминатор для D.
+
+\data D
+  | con1 Nat
+  | con2 D D
+  | con3 (Nat -> D)
+
+\func D-elim (P : D -> \Type)
+             (c1 : \Pi (x : Nat) -> P (con1 x))
+             (c2 : \Pi (d1 d2 : D) -> P d1 -> P d2 -> P (con2 d1 d2))
+             (c3 : \Pi (f : Nat -> \Sigma (x : D) (P x)) -> P (con3 (\lam n => (f n).1)))
+             (x : D) : P x
+  \elim x
+    | con1 n => c1 n
+    | con2 d1 d2 => c2 d1 d2 (D-elim P c1 c2 c3 d1) (D-elim P c1 c2 c3 d2)
+    | con3 f => c3 (\lam n => (f n, D-elim P c1 c2 c3 (f n)))
+
+\func D-rec {P : \Type}
+            (c1 : Nat -> P)
+            (c2 : D -> D -> P)
+            (c3 : (Nat -> D) -> P)
+            (x : D) : P
+  \elim x
+    | con1 n => c1 n
+    | con2 d1 d2 => c2 d1 d2
+    | con3 f => c3 f
+
+-- 9. Определите рекурсор и элиминатор для List.
+
+\func List-elim {A : \Type}
+                (P : List A -> \Type)
+                (n : P nil)
+                (c : \Pi (a : A) -> \Pi (sub : List A) -> P sub -> P (cons a sub))
+                (x : List A) : P x
+  \elim x
+    | nil => n
+    | cons a x => c a x (List-elim P n c x)
+
+\func List-rec {A P : \Type}
+               (n : P)
+               (c : A -> List A -> P)
+               (x : List A) : P
+  \elim x
+    | nil => n
+    | cons a x => c a x
+
+-- Part IV: Интервал
+
+-- 10. Докажите, что left = right, не используя transport, coe и паттерн матчинг с idp.
+
+\func left=right : left = right => path (\lam i => i)
+
+-- 11. Докажите, что если a = a' и b = b', то (a,b) = (a',b'), не используя transport, coe и паттерн матчинг с idp.
+
+\func pairEq {A B : \Type} {a a' : A} {b b' : B} (p : a = a') (q : b = b') : (a,b) = (a',b')
+  => path (\lam i => (p @ i, q @ i))
+
+-- 12. Докажите, что если p = p', то p.1 = p'.1, не используя transport, coe и паттерн матчинг с idp.
+
+\func projEq {A : \Type} (B : A -> \Type) {p p' : \Sigma (x : A) (B x)} (t : p = p') : p.1 = p'.1
+  => path (\lam i => (t @ i).1)
+
+-- 13. Докажите pmap2, не используя transport, coe и паттерн матчинг с idp.
+
+\func pmap2' {A B C : \Type} (f : A -> B -> C) {a a' : A} (p : a = a') {b b' : B} (q : b = b') : f a b = f a' b'
+  => path (\lam i => f (p @ i) (q @ i))
+
+-- 14. Мы видели как определить transport через coe. Определите частный случай coe через transport.
+
+\func coe0 (A : I -> \Type) (a : A left) : A right
+  => transport A left=right a
+
+-- 15. Определите функцию B right -> B left.
+
+\func Itr' {B : I -> \Type} (b : B right) : B left
+  => transport B (sym left=right) b
