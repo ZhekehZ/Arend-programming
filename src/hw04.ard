@@ -120,13 +120,13 @@
 
 \func D-rec {P : \Type}
             (c1 : Nat -> P)
-            (c2 : D -> D -> P)
-            (c3 : (Nat -> D) -> P)
+            (c2 : D -> D -> P -> P -> P)
+            (c3 : (Nat -> \Sigma D P) -> P)
             (x : D) : P
   \elim x
     | con1 n => c1 n
-    | con2 d1 d2 => c2 d1 d2
-    | con3 f => c3 f
+    | con2 d1 d2 => c2 d1 d2 (D-rec c1 c2 c3 d1) (D-rec c1 c2 c3 d2)
+    | con3 f => c3 (\lam n => (f n, D-rec c1 c2 c3 (f n)))
 
 -- 9. Определите рекурсор и элиминатор для List.
 
@@ -141,11 +141,11 @@
 
 \func List-rec {A P : \Type}
                (n : P)
-               (c : A -> List A -> P)
+               (c : A -> List A -> P -> P)
                (x : List A) : P
   \elim x
     | nil => n
-    | cons a x => c a x
+    | cons a x => c a x (List-rec n c x)
 
 -- Part IV: Интервал
 
