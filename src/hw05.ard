@@ -1,0 +1,196 @@
+\import Utils \hiding (<=-refl, J)
+\import lect04 (+-comm)
+\import lect05
+\open Nat(+,*)
+
+-- 1. Докажите pmap при помощи паттерн матчинга с idp.
+
+\func pmap {A B : \Type} (f : A -> B) {a a' : A} (p : a = a') : f a = f a' \elim p
+  | idp => idp
+
+-- Optional:
+-- 2. У оператора J есть другая форма, которую мы будем называть Jalt. Докажите, что J и Jalt эквивалентны, то есть выразите одно через другое и наоборот.
+
+-- Выразите Jalt через J. Можно пользоваться только J, idp и всем, что через них выражается.
+
+\func Jalt {A : \Type} (B : \Pi (a a' : A) -> a = a' -> \Type)
+           (b : \Pi (a : A) -> B a a idp)
+           {a a' : A} (p : a = a') : B a a' p => J (B a) (b a) p
+
+-- Выразите J через Jalt. Можно пользоваться только Jalt, idp и всем, что через них выражается.
+-- Hint:
+-- a. Выразите transport через Jalt.
+-- b. Докажите, что тип \Sigma (x : A) (a = x) одноэлементный, то есть, что для любого p : \Sigma (x : A) (a = x) верно, что (x,idp) = p.
+-- c. Используя эти две конструкции, легко определить J.
+
+\func transport'' {A : \Type} (B : A -> \Type) {a a' : A} (p : a = a') : B a -> B a'
+  => Jalt (\lam a a' p => B a -> B a') (\lam x b => b) p
+
+\func sigma-contr {A : \Type} {a : A} (p : \Sigma (x : A) (a = x)) : (a, idp) = {\Sigma (x : A) (a = x)} p
+  \elim p
+    | (x, p) => helper x p
+  \where {
+      \func helper {A : \Type} {a : A} (x : A) (p : a = x) : (a,idp) = {\Sigma (x : A) (a = x)} (x, p)
+        | x, idp => idp
+    }
+
+\func J' {A : \Type} {a : A} (B : \Pi (a' : A) -> a = a' -> \Type)
+         (b : B a idp)
+         {a' : A} (p : a = a') : B a' p =>  transport'' (\lam p => B p.1 p.2) (sigma-contr (a', p)) b
+
+-- 3. Докажите, что vnil является нейтральным элементом для v++.
+
+
+\func vnil-rightId {A : \Type} {n : Nat} (xs : Vec A n) : transport (Vec A) (+-comm 0 n) (xs v++ vnil) = xs \elim n, xs
+  | 0, vnil => idp
+  | suc n, vcons a xs => aux n n (+-comm 0 n) a xs xs (vnil-rightId xs)
+  \where {
+    \func aux {A : \Type}
+      (n m : Nat)
+      (p : 0 + n = m)
+      (a : A) (xs : Vec A n) (ys : Vec A m)
+      (t : transport (Vec A) p (xs v++ vnil) = ys)
+      : transport (Vec A) (Utils.pmap suc p) (vcons a (xs v++ vnil)) = vcons a ys \elim p
+      | idp => pmap (vcons a) t
+  }
+
+
+-- 4. Определите предикат принадлежности элемента списку.
+
+\data In {A : \Type} (a : A) (xs : List A) \elim xs
+  | cons x xs => {
+    | in! (x = a)
+    | in? (In a xs)
+  }
+
+\func in-test-1 : In 1 (cons 0 (cons 2 (cons 1 nil))) => in? (in? (in! idp))
+
+-- Optional:
+-- 5. Докажите эквивалентность четырех различных определений LessOrEq: lessOrEq, lessOrEq', LessOrEq и LessOrEq'.
+
+\func LessOrEq'=>LessOrEq {n m : Nat} (x : LessOrEq' n m) : LessOrEq n m \elim n, m, x
+  | 0, _, _ => z<=_
+  | suc n, suc m, <=-step x => lemma1 (LessOrEq'=>LessOrEq x)
+  | suc n, m, <=-refl p => lemma2 p
+  \where {
+    \func lemma1 {n m : Nat} (x : LessOrEq n m) : LessOrEq n (suc m) \elim n, m, x
+      | 0, _, _ => z<=_
+      | suc n, suc m, s<=s x => s<=s (lemma1 x)
+    \func lemma2 {n m : Nat} (p : n = m) : LessOrEq n m \elim n, p
+      | 0, idp => z<=_
+      | suc n, idp => s<=s (lemma2 idp)
+  }
+
+\func LessOrEq=>lessOrEq' {n m : Nat} (x : LessOrEq n m) : lessOrEq' n m \elim n, m, x
+  | 0, _, z<=_ => ()
+  | suc n, suc m, s<=s x => LessOrEq=>lessOrEq' x
+
+\func lessOrEq'=>lessOrEq {n m : Nat} (x : lessOrEq' n m) : lessOrEq n m \elim n, m, x
+  | 0, m, x => (m, +-comm 0 m)
+  | suc n, suc m, x => \let p => lessOrEq'=>lessOrEq {n} {m} x \in (p.1, lemma1 p.2)
+  \where {
+    \func lemma1 {n k m : Nat} (p : n + k = m) : suc n + k = suc m => (
+      suc n + k   ==< +-comm (suc n) k      >==
+      suc (k + n) ==< pmap suc (+-comm k n) >==
+      suc (n + k) ==< pmap suc p            >==
+      suc m       `qed
+    )
+  }
+
+\func lessOrEq=>LessOrEq' {n m : Nat} (x : lessOrEq n m) : LessOrEq' n m => lemma1 x.2
+  \where {
+    \func lemma1 {n k m : Nat} (p : n + k = m) : LessOrEq' n m \elim  n, k, p
+      | _, 0, idp => <=-refl idp
+      | n, suc k, idp => <=-step (lemma1 idp)
+  }
+
+-- 6. Определите рефлексивное транзитивное замыкание отношения.
+--    То есть ReflTransClosure R -- это минимальное рефлексивное и транзитивное отношение, содержащее R.
+
+\data ReflTransClosure {A : \Type} (R : A -> A -> \Type) (x y : A)
+  | refl-R (x = y)
+  | trans-R {y' : A} (ReflTransClosure R x y') (R y' y)
+  --                         x =>* y'          y' => y
+
+  -- 7. Докажите, что если R уже рекфлексивно и транзитивно, то ReflTransClosure R эквивалентно R.
+
+\func ReflTransClosure-lem {A : \Type} (R : A -> A -> \Type) (refl : \Pi (x : A) -> R x x) (trans : \Pi (x y z : A) -> R x y -> R y z -> R x z)
+  : \Pi (x y : A) -> R x y <-> ReflTransClosure R x y
+  => \lam x y => (trans-R (refl-R idp), refl-trans<=refl-trans-closure R refl trans x y)
+  \where {
+    \func refl-trans<=refl-trans-closure {A : \Type}
+      (R : A -> A -> \Type)
+      (refl : \Pi (x : A) -> R x x)
+      (trans : \Pi (x y z : A) -> R x y -> R y z -> R x z)
+      (x y : A) (p : ReflTransClosure R x y) : R x y \elim p
+      | refl-R p => transport (R x) p (refl x)
+      | trans-R {y'} p r => trans x y' y (refl-trans<=refl-trans-closure R refl trans x y' p) r
+  }
+
+-- 8. Определите предикат Sublist xs ys на списках, означающий "список xs является подсписком ys".
+
+\data Sublist {A : \Type} (xs ys : List A) \elim xs, ys
+  | nil, _ => sublist!
+  | cons x xs, cons y ys => sublist*? (x = y) (Sublist xs ys)
+  | xs, cons y ys => sublist_? (Sublist xs ys)
+
+\func test-1 : Sublist (cons 1 (cons 2 nil)) (cons 1 (cons 2 nil)) => sublist*? idp (sublist*? idp sublist!)
+\func test-2 : Sublist (cons 1 nil) (cons 1 (cons 2 nil)) => sublist*? idp (sublist!)
+\func test-3 : Sublist (cons 1 (cons 3 nil)) (cons 1 (cons 2 (cons 3 nil))) => sublist*? idp (sublist_? (sublist*? idp sublist!))
+
+-- 9. Докажите, что Sublist (filter p xs) xs для любых p и xs.
+
+\func filter-Sublist {A : \Type} (p : A -> Bool) (xs : List A) : Sublist (filter p xs) xs \elim xs
+  | nil => sublist!
+  | cons a xs => \case p a \as b \return
+      Sublist (\case b \with {
+        | true => cons a (filter p xs)
+        | false => filter p xs
+      }) (cons a xs) \with {
+    | true => sublist*? idp (filter-Sublist p xs)
+    | false => sublist_? (filter-Sublist p xs)
+  }
+
+-- 10. Определите filter через if, а не через \case.
+--     Докажите для этой версии filter лемму filter-lem.
+
+\func filter' {A : \Type} (p : A -> Bool) (xs : List A) : List A \elim xs
+  | nil => nil
+  | cons a xs => if (p a) (cons a (filter' p xs)) (filter' p xs)
+
+\func filter-lem {A : \Type} (p : A -> Bool) (xs : List A) : length (filter' p xs) Nat.<= length xs \elim xs
+  | nil => Nat.zero<=_
+  | cons a xs => \case p a \as b \return length (if b (cons a (filter' p xs)) (filter' p xs)) Nat.<= suc (length xs) \with {
+    | true => Nat.suc<=suc (filter-lem p xs)
+    | false => _<=suc (filter-lem p xs)
+  }
+  \where {
+    \func _<=suc {n m : Nat} (p : n Nat.<= m) : n Nat.<= suc m \elim n, p
+      | 0, _ => Nat.zero<=_
+      | suc _, Nat.suc<=suc p => Nat.suc<=suc (_<=suc p)
+  }
+
+-- 11. Закончите определение функции \func BoolFuncLem (f : Bool -> Bool) (x : Bool) : f (f (f x)) = f x из лекции.
+
+\func BoolFuncLem (f : Bool -> Bool) (x : Bool) : f (f (f x)) = f x
+  => \case x \as x', f true \as ft, idp : f true = ft, f false \as ff, idp : f false = ff \return f (f (f x')) = f x' \with {
+    | true, true, p, _, _      => pmap f (transport (\lam x => f x = true) (sym p) p)
+    | false, _, _, false, q    => pmap f (transport (\lam x => f x = false) (sym q) q)
+    | true, false, p, true, q  => pmap f (transport (\lam x => f x = true) (sym p) q)
+    | false, false, p, true, q => pmap f (transport (\lam x => f x = false) (sym q) p)
+    | false, true, p, true, q  => \let FFf=Ff => transport (\lam x => f x = x) (sym q) p \in pmap f FFf=Ff *> FFf=Ff
+    | true, false, p, false, q => \let FFt=Ft => transport (\lam x => f x = x) (sym p) q \in pmap f FFt=Ft *> FFt=Ft
+  }
+
+
+-- Optional:
+-- 12. Парадокс Рассела показывает, что не существует множества всех множеств.
+-- Если такое множеств существует, то мы можем определить множество B, состоящее из множеств, не содержащих себя.
+-- Тогда B принадлежит себе тогда и только тогда, когда оно себе не принадлежит.
+-- Отсюда следует противоречии.
+-- Теорема Кантора утверждает, что не сущесвует множества X с сюръекцией из X в множество подмножеств X.
+-- Ее доказательство также конструирует утверждение, которое верно тогда и только тогда, когда оно ложно.
+-- Верно, что в общем случае существование такого утверждения влечет противоречие.
+-- Это легко доказать при помощи исключенного третьего, но утверждение верно и без него.
+-- Докажите этот факт.
+\func contrProp {A : \Type} (p : A -> Not A) (q : Not A -> A) : Empty => \let a => q (\lam a => p a a) \in p a a
