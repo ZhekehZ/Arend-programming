@@ -27,12 +27,7 @@
   => Jalt (\lam a a' p => B a -> B a') (\lam x b => b) p
 
 \func sigma-contr {A : \Type} {a : A} (p : \Sigma (x : A) (a = x)) : (a, idp) = {\Sigma (x : A) (a = x)} p
-  \elim p
-    | (x, p) => helper x p
-  \where {
-      \func helper {A : \Type} {a : A} (x : A) (p : a = x) : (a,idp) = {\Sigma (x : A) (a = x)} (x, p)
-        | x, idp => idp
-    }
+  => Jalt (\lam a a' p => (a, idp) = {\Sigma (x : A) (a = x)} (a', p)) (\lam a => idp) p.2
 
 \func J' {A : \Type} {a : A} (B : \Pi (a' : A) -> a = a' -> \Type)
          (b : B a idp)
@@ -165,9 +160,9 @@
     | false => _<=suc (filter-lem p xs)
   }
   \where {
-    \func _<=suc {n m : Nat} (p : n Nat.<= m) : n Nat.<= suc m \elim n, p
-      | 0, _ => Nat.zero<=_
-      | suc _, Nat.suc<=suc p => Nat.suc<=suc (_<=suc p)
+    \func _<=suc {n m : Nat} (p : n Nat.<= m) : n Nat.<= suc m \elim n, m, p
+      | 0, _, _ => Nat.zero<=_
+      | suc _, suc _, Nat.suc<=suc p => Nat.suc<=suc (_<=suc p)
   }
 
 -- 11. Закончите определение функции \func BoolFuncLem (f : Bool -> Bool) (x : Bool) : f (f (f x)) = f x из лекции.
