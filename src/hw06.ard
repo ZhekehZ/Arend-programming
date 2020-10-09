@@ -1,0 +1,109 @@
+\import Utils
+\import lect04
+\import lect06
+\open Nat(+)
+
+-- 1. Определите функцию swap несколькими способами.
+
+-- При помощи \cowith и доступа к полям.
+\func swap {A B : \Type} (p : Pair A B) : Pair B A \cowith
+  | fst_ => p.snd_
+  | snd_ => p.fst_
+
+-- При помощи \new и паттерн матчинга.
+\func swap' {A B : \Type} (p : Pair A B) : Pair B A \elim p
+  | (a, b) => \new Pair B A b a
+
+-- При помощи \new и доступа к полям.
+\func swap'' {A B : \Type} (p : Pair A B) : Pair B A => \new Pair B A p.snd_ p.fst_
+
+-- 2. Докажите, что swap (swap p) = p.
+
+\func swap-involutive {A B : \Type} (p : Pair A B) : swap (swap p) = p => idp
+
+-- 3. Докажите, что тип PosNat 0 пустой, а тип PosNat 1 нет.
+
+\func zero-isNotPos (p : PosNat 0) : Empty => p.p
+
+\func one-isPos : PosNat 1 => \new PosNat 1 ()
+
+-- 4. Определите \record, состоящий из пар взаимно простых натуральных чисел.
+--    Определите тип, состоящий из натуральных чисел, взаимно простых с 60.
+
+\import hw01 (gcd)
+
+\record Coprime (x y : Nat) (p : gcd x y = 1)
+\func Coprime60 => Coprime 60
+
+-- 5. Закончите определение класса монад. Этот класс должен содержать все монадные законы и реализовывать все поля из класса функторов.
+
+\class Monad \extends Functor
+  | return {A : \Type} : A -> F A
+  | \infixl 1 >>= {A B : \Type} : F A -> (A -> F B) -> F B
+
+  -- Monad laws
+  | monad-left-id {A B : \Type} (a : A) (f : A -> F B) : (return a >>= f) = f a
+  | monad-right-id {A : \Type} (m : F A) : (m >>= return) = m
+  | monad-assoc {A B C : \Type} (m : F A) (f : A -> F B) (g : B -> F C)
+    : ((m >>= f) >>= g) = (m >>= (\lam x => f x >>= g))
+
+  -- Functor
+  | fmap f x => x >>= (\lam y => return (f y))
+  | fmap-id => monad-right-id
+  | fmap-comp f g x => (
+    (x >>= (\lam y => return (g (f y))))
+                ==< pmap (x >>=) (path (\lam i a => (sym (monad-left-id (f a) (\lam y => return (g y)))) @ i))  >==
+    (x >>= (\lam y => return (f y) >>=  (\lam y => return (g y))))
+                ==< sym (monad-assoc x (\lam y => return (f y)) (\lam y => return (g y)))                       >==
+    (x >>= (\lam y => return (f y)) >>= (\lam y => return (g y))) `qed
+  )
+
+-- 6. Определите \instance Monad для Maybe.
+
+\instance MaybeMonad : Monad Maybe
+  | return => just
+  | >>= {A B : \Type} (x : Maybe A) (f : A -> Maybe B) : Maybe B
+    \elim x {
+      | nothing => nothing
+      | just a => f a
+    }
+  | monad-left-id {A B : \Type} (a : A) (f : A -> Maybe B) => idp
+  | monad-right-id {A : \Type} (m : Maybe A) : (>>= m just = m)
+    \elim m {
+      | nothing => idp
+      | just a => idp
+    }
+  | monad-assoc {A B C : \Type} (m : Maybe A) (f : A -> Maybe B) (g : B -> Maybe C)
+      : >>= (>>= m f) g = >>= m (\lam x => >>= (f x) g)
+    \elim m {
+      | nothing => idp
+      | just a => idp
+    }
+
+-- 7. Определите \instance Monad для State и State'.
+
+\record State (S A : \Type)
+  | state : S -> \Sigma S A
+
+\instance MonadState (S : \Type) : Monad (\lam x => State S x)
+  | return {A} a => \new State S A (\lam s => (s, a))
+  | >>= {A} {B} m f => \new State S B (\lam s => \case state {m} s \with { | (s, x) => state {f x} s })
+  | monad-left-id a f => idp
+  | monad-right-id m => idp
+  | monad-assoc m f g => idp
+
+\data State' (S A : \Type)
+  | state' (S -> \Sigma S A)
+
+\instance MonadState' (S : \Type) : Monad (\lam x => State' S x)
+  | return a => state' (\lam s => (s, a))
+  | >>= st' f => state' (\lam s0 => \case unState' st' s0 \with { | (s1, a) => unState' (f a) s1 })
+  | monad-left-id a f => state-unstate (f a)
+  | monad-right-id m => state-unstate m
+  | monad-assoc m f g => idp
+  \where {
+    \func unState' {S A : \Type} (s : State' S A) : S -> \Sigma S A
+      | state' x => x
+    \func state-unstate {S A : \Type} (s : State' S A) : state' (unState' s) = s \elim s
+      | state' f => idp
+  }
