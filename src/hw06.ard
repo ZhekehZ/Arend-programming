@@ -95,7 +95,7 @@
 \data State' (S A : \Type)
   | state' (S -> \Sigma S A)
 
-\instance MonadState' (S : \Type) : Monad (\lam x => State' S x)
+\instance MonadState' (S : \Type) : Monad (State' S)
   | return a => state' (\lam s => (s, a))
   | >>= st' f => state' (\lam s0 => \case unState' st' s0 \with { | (s1, a) => unState' (f a) s1 })
   | monad-left-id a f => state-unstate (f a)
