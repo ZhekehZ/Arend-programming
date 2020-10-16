@@ -1,0 +1,90 @@
+\import Meta
+\import Paths.Meta
+\import Utils
+\import lect07
+
+-- 1. Реализуйте функцию filter и докажите ее корректность, то есть, что выполнены следующие условия:
+--    * filter p xs является подсписком xs
+--    * Все элементы filter p xs удовлетворяют предикату p
+--    * Любой подсписок xs с тем же свойством является подсписком filter p xs
+
+\func filter {A : \Type} (p : A -> Bool) (xs : List A) : List A \elim xs
+  | nil => nil
+  | cons a xs => \case p a \with {
+    | true => cons a (filter p xs)
+    | false => filter p xs
+  }
+
+\data SubList {A : \Type} (xs ys : List A) \elim xs, ys
+  | nil, nil => sublist-nil
+  | xs, cons a ys => sublist-cons- (SubList xs ys)
+  | cons a xs, cons a' ys => sublist-cons+ (a = a') (SubList xs ys)
+
+-- * filter p xs является подсписком xs
+\func filter-sublist {A : \Type} (p : A -> Bool) (xs : List A) : SubList (filter p xs) xs \elim xs
+  | nil => sublist-nil
+  | cons a xs => mcases \with {
+    | true => sublist-cons+ idp (filter-sublist p xs)
+    | false => sublist-cons- (filter-sublist p xs)
+  }
+
+\data All {A : \Type} (p : A -> Bool) (xs : List A) \elim xs
+  | nil => all-nil
+  | cons x xs => all-cons (p x = true) (All p xs)
+
+--  * Все элементы filter p xs удовлетворяют предикату p
+\func filter-accept {A : \Type} (p : A -> Bool) (xs : List A) : All p (filter p xs) \elim xs
+  | nil => all-nil
+  | cons a xs => \case p a \as q, idp : p a = q
+  \return
+        All p (\case q \with {
+          | true => cons a (filter {A} p xs)
+          | false => filter {A} p xs
+        })
+  \with {
+    | true, r => all-cons r (filter-accept p xs)
+    | false, _ => filter-accept p xs
+  }
+
+--  * Любой подсписок xs с тем же свойством является подсписком filter p xs
+\func sublist-of-filtered-is-sublist {A : \Type} {p : A -> Bool} {ys xs : List A}
+         (ys<|xs : SubList ys xs) (all-ys : All p ys) : SubList ys (filter p xs) \elim ys, xs, ys<|xs, all-ys
+  | nil, nil, sublist-nil, _ => sublist-nil
+  | ys, cons _ xs, sublist-cons- ys<|xs, all-ys => mcases \with {
+    | true => sublist-cons- (sublist-of-filtered-is-sublist ys<|xs all-ys)
+    | false => sublist-of-filtered-is-sublist ys<|xs all-ys
+  }
+  | cons a ys, cons a1 xs, sublist-cons+ idp ys<|xs, all-cons p*a=true all-ys =>
+    rewrite p*a=true (sublist-cons+ idp (sublist-of-filtered-is-sublist ys<|xs all-ys))
+
+-- 2. Определите trans и sym через rewrite.
+
+\func trans {A : \Type} {a a' a'' : A} (p : a = a') (q : a' = a'') : a = a'' => rewrite p (rewrite q idp)
+\func sym {A : \Type} {a a' : A} (p : a = a') : a' = a => rewrite p idp
+
+-- 3. Перепешите insert-perm, insert-lem и insert-sorted через mcases.
+
+\func insert-perm {A : TotalPreorder} (a : A) (xs : List A): Perm (cons a xs) (insert a xs) \elim xs
+  | nil => perm-refl
+  | cons _ xs => mcases \with {
+    | inl _ => perm-trans (perm-perm idp idp idp) (perm-cons idp (insert-perm a xs))
+    | inr _ => perm-refl
+  }
+  \where {\open sort}
+
+\func insert-lem {A : TotalPreorder}
+   (a a1 : A) {xs : List A} (a1<=a : a1 <= a) (p : a1 <= headDef a1 xs) : a1 <= headDef a1 (insert a xs) \elim xs
+  | nil => a1<=a
+  | cons _ _ => mcases \with {
+    | inl _ => p
+    | inr _ => a1<=a
+  }
+  \where {\open sort}
+
+\func insert-sorted {A : TotalPreorder} (a : A) {xs : List A} (s : Sorted xs): Sorted (insert a xs) \elim xs, s
+  | nil, _ => sorted-cons <=-refl sorted-nil
+  | cons a1 xs, sorted-cons a1<=a1|xs s' \as s => mcases \with {
+    | inl a1<=a => sorted-cons (insert-lem a a1 a1<=a a1<=a1|xs) (insert-sorted a s')
+    | inr a<=a1 => sorted-cons a<=a1 s
+  }
+  \where {\open sort}
