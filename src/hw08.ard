@@ -1,0 +1,121 @@
+\import Data.List
+\import Data.Or
+\import Logic.Meta
+\import Meta
+\import Order.LinearOrder
+\import Paths (inv)
+\import Paths.Meta
+\import Utils (*>, <->, cons, pmap)
+\import lect04
+\import lect07 (perm-cons)
+\import lect08
+\open LinearOrder
+
+-- 1. Докажите, что Perm l1 l2 тогда и только тогда, когда Insertion.sort l1 = Insertion.sort l2.
+\func permXY<->sortX=sortY {A : Dec} {l1 l2 : List A} : Perm l1 l2 <-> (sort l1 = sort l2) => (p->s, s->p)
+  \where {
+    \open Insertion
+
+    \func p->s {A : Dec} {l1 l2 : List A} (p : Perm l1 l2) : sort l1 = sort l2 \elim l1, l2, p
+      | nil, nil, perm-nil => idp
+      | :: x xs, :: y ys, perm-:: q p => run {
+        rewrite q,
+        rewrite (p->s p),
+        idp
+      }
+      | :: x (:: x' xs), :: y (:: y' ys) , perm-swap x=y' x'=y xs=ys => run {
+        rewrite x=y',
+        rewrite x'=y,
+        rewrite xs=ys,
+        sort-perm.insert-comm y' y (sort ys)
+      }
+      | xs, ys, perm-trans p1 p2 => p->s p1 *> p->s p2
+
+    \func s->p {A : Dec} {l1 l2 : List A} (s : sort l1 = sort l2) : Perm l1 l2
+      => perm-trans (sort-perm l1) (rewrite s (perm-sym (sort-perm l2)))
+
+    \func perm-sym {A : \Type} {a b : List A} (p : Perm a b) : Perm b a \elim a, b, p
+      | nil, nil, perm-nil => perm-nil
+      | :: x xs, :: y ys, perm-:: q p => perm-:: (inv q) (perm-sym p)
+      | :: x (:: x' xs), :: y (:: y' ys) , perm-swap x=y' x'=y xs=ys => run {
+        rewrite x=y',
+        rewrite x'=y,
+        rewrite xs=ys,
+        perm-swap idp idp idp
+      }
+      | xs, ys, perm-trans p1 p2 => perm-trans (perm-sym p2) (perm-sym p1)
+  }
+
+
+-- 2. Докажите, что спецификация "результат является перестановкой входа и отсортирован" является полной для функции sort.
+
+\func completeness {A : Dec} (sort : List A -> List A) (l : List A) (p : Perm l (sort l)) (s : Sorted (sort l)) : sort l = Insertion.sort l
+  => inv (permXY<->sortX=sortY.p->s p *> sort-sorted=id (sort l) s)
+  \where {
+    \func sort-sorted=id {A : Dec} (l : List A) (s : Sorted l) : Insertion.sort l = l \elim l, s
+      | nil, sorted-nil => idp
+      | :: a l, sorted-cons p s => rewrite (sort-sorted=id l s) (insert-head p s)
+
+    \func insert-head {A : Dec} {a : A} {l : List A} (p : a <= headDef a l) (s : Sorted l) : Insertion.sort.insert a l = a :: l
+    \elim l, s
+      | nil, sorted-nil => idp
+      | :: a1 l, sorted-cons _x s => mcases \with {
+        | inl a1<a => contradiction
+        | inr a<=a1 => idp
+      }
+  }
+
+-- 3. Определите факториал через хвостовую рекурсию.
+--    Докажите, что он равен обычному определению факториала.
+
+\import hw04 (fac, ldistr, rdistr)
+
+\func factorial (n : Nat) : Nat => fac n 1
+  \where {
+    \open Nat
+
+    \func fac (n acc : Nat) : Nat \elim n
+      | suc n => fac n (suc n * acc)
+      | 0 => acc
+
+    \func fac-0 (n : Nat) : fac n 0 = 0
+      | 0 => idp
+      | suc n => fac-0 n
+  }
+
+\func fac=factorial (n : Nat) : fac n = factorial n
+  | 0 => idp
+  | suc n => fac-acc n (suc n) *> rewrite (*-comm n 1 *> _1*) idp
+  \where {
+    \open Nat
+
+    \func fac-acc (n m : Nat) : m * fac n = factorial.fac n m
+      | 0, 0 => idp
+      | 0, suc m => rewrite (+-comm 0 m) idp
+      | suc n, 0 => run {
+        rewrite *-comm,
+        rewrite factorial.fac-0,
+        idp
+      }
+      | suc n, m => run {
+        rewrite *-assoc,
+        rewrite (*-comm m (suc n)),
+        fac-acc n (suc n * m)
+      }
+
+    \func *-comm (n m : Nat) : n * m = m * n \elim n
+      | 0 => _0*
+      | suc n => rdistr m n 1 *> rewrite *-comm (rewrite _1* idp)
+
+    \func *-assoc (n m k : Nat) : n * (m * k) = (n * m) * k \elim k
+      | 0 => idp
+      | suc k => ldistr n (m * k) m *> rewrite (*-assoc n m k) idp
+
+    \func _1* {n : Nat} : 1 * n = n \elim n
+      | 0 => idp
+      | suc n => pmap suc _1*
+
+    \func _0* {n : Nat} : 0 * n = 0 \elim n
+      | 0 => idp
+      | suc n => _0*
+  }
