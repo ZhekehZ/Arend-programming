@@ -1,0 +1,142 @@
+\import Logic.Meta
+\import Meta
+\import Paths.Meta
+\import Utils
+\import hw02 (tail)
+\import lect01 (func)
+\import lect05 (lessOrEq)
+\import lect07
+\import lect09
+\open Nat(+,*)
+
+-- 1. Докажите, что предикат isEven разрешим.
+
+\func isEven (n : Nat) => \Sigma (k : Nat) (n = 2 * k)
+
+\func isEven-dec : DecPred isEven => lemma
+\where {
+    \func lemma (n : Nat) : Decide (isEven n)
+      | 0 => yes (0, idp)
+      | suc (suc n) => \case lemma n \with {
+        | yes (k, n=2k) => yes (suc k, pmap (\lam x => suc (suc x)) n=2k)
+        | no f => no (\lam p => \case p.1 \as k', p.2 : (suc (suc n)) = 2 * k' \with {
+          | suc k', p1 => f (k', pmap (\lam x => pred (pred x)) p1)
+        })
+      }
+      | 1 => no (\lam k => \case k.1 \as k', k.2 : 1 = 2 * k' \with { | 0, () })
+}
+
+-- 2. Докажите, что если равенство элементов A разрешимо, то и равенство элементов List A тоже разрешимо.
+
+\instance ListEq {A : \Type} (dec : Eq A) : Eq (List A)
+  | decideEq (l1 l2 : List A) => lemma dec l1 l2
+  \where {
+    \func lemma {A : \Type} (dec : Eq A) (l1 l2 : List A) : Decide (l1 = l2)
+      | dec, nil, nil => yes idp
+      | dec, nil, cons a l2 => no (\lam x => contradiction)
+      | dec, cons a l1, nil => no (\lam x => contradiction)
+      | dec, cons a l1, cons a1 l2 => \case decideEq a a1 \with {
+        | yes a=a1 => \case lemma dec l1 l2 \with {
+          | yes l1=l2 => yes (run { rewrite a=a1, rewrite l1=l2, idp })
+          | no n => no (\lam a:l1=a1:l2 => \case rewrite a=a1 a:l1=a1:l2 \with { | p => n (pmap tail p) })
+        }
+        | no a/=a1 => no (\lam x => a/=a1 (pmap (headDef a) x))
+      }
+  }
+
+-- 3. Докажите, что функции FromBoolToDec и FromDecToBool взаимно обратны.
+
+\func bdb {A : \Type} (p : A -> Bool) : FromDecToBool (FromBoolToDec p) = p => path (\lam i a => case-a p a @ i)
+  \where {
+    \func case-a {A : \Type} (p : A -> Bool) (a : A)
+      : (\lam a => \case \case p a \as x \return Decide (T x)
+                          \with { | true => yes () | false => no (\lam x => x) }
+                   \return Bool
+                   \with { | yes _ => true | no _ => false }
+        ) a = p a
+      =>  \case p a \as x
+          \return (\case
+                        \case x \as x
+                        \return Decide (T x)
+                        \with { | true => yes () | false => no (\lam x => x) }
+                   \with { | yes _ => true | no _ => false }
+                  ) = x
+          \with {
+            | true => idp
+            | false => idp
+          }
+  }
+
+-- Мы не можем доказать, что FromBoolToDec (FromDecToBool P) = P, но мы можем доказать более слабое утверждение: эти предикаты логически эквивалентны.
+-- Для этого введем эквивалентность предикатов.
+
+\func dbd {A : \Type} (P : \Sigma (P : A -> \Type) (DecPred P))
+  : \Pi (x : A) -> (FromBoolToDec (FromDecToBool P)).1 x <-> P.1 x
+  => \lam x => unfold (FromDecToBool, FromBoolToDec) (
+      \case P.1 x \as p1x, P.2 x \as p2x : (Decide p1x)
+      \return ( T (\case p2x \with { | yes _ => true | no _ => false }) <-> p1x )
+      \with {
+        | p1x, yes a => (\lam _ => a, \lam _ => ())
+        | p1x, no n => (contradiction, n)
+      }
+  )
+
+-- 4. Укажите явно чему равен уровень в каждом из вызовов id' ниже.
+--    Напишите явно чему равны типы всех функций idTest*.
+
+\func id' {A : \Type} (a : A) => a
+
+\func idTest1 : \Pi (A : \Type \lp) -> A -> A
+              => id' (\suc (\suc \lp)) (id' (\suc \lp) id)
+\func idTest2 : \Type \lp -> \Type \lp
+              => id' (\suc \lp) Maybe
+\func idTest3 : \Type (\suc \lp)
+              => id' (\suc (\suc \lp)) Functor
+\func idTest4 : \Type (\suc \lp)
+              => id' (\suc (\suc \lp)) (Functor Maybe)
+\func idTest5 (f : \Pi {A B : \Set} -> (A -> B) -> Maybe A -> Maybe B)
+              : \Prop
+              => id' (\lp) (Functor Maybe f)
+
+-- 5. Докажите следующий принцип индукции для списков.
+
+\func List-ind
+  {A : \Type}
+  (E : List A -> \Type)
+  (r : \Pi (xs : List A) -> (\Pi (ys : List A) -> length ys < length xs -> E ys) -> E xs)
+  (xs : List A)
+    : E xs \elim xs
+    | nil => r nil (\lam y => mcases {length} (contradiction))
+    | cons a xs \as xs' => aux E r (cons a xs') xs' <=-refl
+  \where {
+    \func aux
+      {A : \Type}
+      (E : List A -> \Type)
+      (r : \Pi (xs : List A) -> (\Pi (ys : List A) -> length ys < length xs -> E ys) -> E xs)
+      (xs ys : List A) (p : length ys < length xs)
+      : E ys \elim xs, ys, p
+      | cons a xs, nil, Nat.suc<=suc z<=len-xs => r nil (\lam y => mcases {length} (contradiction))
+      | cons a xs, ys, Nat.suc<=suc ys<=xs => r ys (\lam ys' ys'<ys => aux E r xs ys' (<=-trans ys'<ys ys<=xs))
+  }
+
+-- 6. Определите div через Nat-ind.
+
+\func div (n k : Nat) (p : 0 < k) : Nat =>
+  \case Nat-ind D (aux n k) n \with { d q => q }
+  \where {
+    \data D (_ : Nat) | d Nat
+    \func aux (n k : Nat) (l : Nat) (ind : \Pi (l' : Nat) -> l' < l -> D l') : D l \elim l
+      | 0 => d 0
+      | suc l => \case totality (k * suc l) n \with {
+        | inl _ => d (suc l)
+        | inr _ => \case ind l <=-refl \with { | d x => d x }
+      }
+  }
+
+\func z<n+1 {n : Nat} : 0 < suc n => Nat.suc<=suc Nat.zero<=_
+\func test1 : div 2  2 z<n+1 = 1 => idp
+\func test2 : div 4  2 z<n+1 = 2 => idp
+\func test3 : div 3  2 z<n+1 = 1 => idp
+\func test4 : div 2  3 z<n+1 = 0 => idp
+\func test5 : div 0  3 z<n+1 = 0 => idp
+\func test6 : div 18 3 z<n+1 = 6 => idp
