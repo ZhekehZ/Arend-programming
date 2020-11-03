@@ -87,7 +87,7 @@
 \func id' {A : \Type} (a : A) => a
 
 \func idTest1 : \Pi (A : \Type \lp) -> A -> A
-              => id' (\suc (\suc \lp)) (id' (\suc \lp) id)
+              => id' (\suc \lp) (id' (\suc \lp) id)
 \func idTest2 : \Type \lp -> \Type \lp
               => id' (\suc \lp) Maybe
 \func idTest3 : \Type (\suc \lp)
