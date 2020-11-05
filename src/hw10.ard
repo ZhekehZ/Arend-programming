@@ -175,15 +175,9 @@
       | app _ _, app a'1 a'2, appLeft r idp, _, appType h1 h2 => appType h1 (redLem1 r h2)
       | lam a, lam a', lamRed r, Arr A1 A2, lamType t => lamType (redLem1 r t)
       | app a1 a2, unit, _, Unit, _ => unitType
-      | app a1 a2, x, beta f idp p1, T, appType h1 (lamType t) => transport (\lam x => hasType ctx x T) p1 (lemma t h1)
-
-    \func lemma {V : \Type} {A T : Type} {ctx : V -> Type} {f : Term (Maybe V)} {a2 : Term V}
-                (p : hasType (maybe A ctx) f T) (q : hasType ctx a2 A)
-      : hasType ctx (f TermMonad.>>= maybe a2 var) T \elim A, T, f, p
-      | _, _, var nothing, varType idp => q
-      | _, _, var (just _), varType idp => varType idp
-      | _, Unit, unit, unitType => unitType
-      | _, _, app f1 f2, appType p1 p2 => appType (lemma p1 q) (lemma p2 q)
-      | A, Arr T1 T2, lam f, lamType p => lamType {?} -- сложно
-                                                      -- hasType (maybe T1 ctx) (f TermMonad.>>= liftM (maybe a2 var)) T2
+      | app a1 a2, x, beta f idp p1, T, appType h1 (lamType t) => transport (\lam x => hasType ctx x T) p1
+          (substLem (maybe _ ctx) f T t ctx (maybe a2 var)
+              (\case __ \as u \return hasType ctx (maybe a2 var u) (maybe _ ctx u)
+                \with { | nothing => h1 | just a => varType idp }
+              ))
   }
