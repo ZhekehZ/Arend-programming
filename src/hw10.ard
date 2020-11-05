@@ -1,0 +1,189 @@
+\import Logic.Meta
+\import Meta
+\import Paths.Meta
+\import Utils
+\import lect09 (Decide, no, yes)
+\import lect10
+
+\class Functor (F : \Type -> \Type)
+  | fmap {A B : \Type} (f : A -> B) : F A -> F B
+  | fmap-id {A : \Type} (y : F A) : fmap (\lam (x : A) => x) y = y
+  | fmap-comp {A B C : \Type} (f : A -> B) (g : B -> C) (y : F A)
+  : fmap (\lam x => g (f x)) y = fmap g (fmap f y)
+
+\class Monad \extends Functor
+  | return {A : \Type} : A -> F A
+  | \infixl 1 >>= {A B : \Type} : F A -> (A -> F B) -> F B
+  | >>=-left {A B : \Type} (a : A) (k : A -> F B) : (return a >>= k) = k a
+  | >>=-right {A : \Type} (m : F A) : (m >>= return) = m
+  | >>=-assoc {A B C : \Type} (m : F A) (k : A -> F B) (l : B -> F C) : ((m >>= k) >>= l) = (m >>= (\lam a => k a >>= l))
+  | fmap => {?}
+  | fmap-id => {?}
+  | fmap-comp => {?}
+
+\instance MaybeMonad : Monad Maybe
+  | return => just
+  | >>= m k => maybe nothing k m
+  | >>=-left => {?}
+  | >>=-right => {?}
+  | >>=-assoc => {?}
+
+-- 1. Закончите определение \instance Monad для Term.
+
+\func termMap {A B : \Type} (f : A -> B) (t : Term A) : Term B \elim t
+  | var v => var (f v)
+  | unit => unit
+  | app t1 t2 => app (termMap f t1) (termMap f t2)
+  | lam t => lam (termMap (maybe nothing (\lam x => just (f x))) t)
+
+{-
+-- это некорректное определение termMap just
+\func lift {A : \Type} (t : Term A) : Term (Maybe A) \elim t
+  | var v => var (just v)
+  | unit => unit
+  | app t1 t2 => app (termMap just t1) (termMap just t2)
+  | lam t => lam (termMap just t)
+-}
+
+\func liftM {A B : \Type} (k : A -> Term B) (m : Maybe A) : Term (Maybe B)
+  => maybe (var nothing) (\lam a => termMap just (k a)) m
+
+\instance TermMonad : Monad Term
+  | return => var
+  | \infixl 1 >>= {A B : \Type} (t : Term A) (k : A -> Term B) : Term B \elim t {
+    | var v => k v
+    | unit => unit
+    | app t1 t2 => app (t1 >>= k) (t2 >>= k)
+    | lam t => lam (t >>= liftM k)
+  }
+  | >>=-left _ _ => idp
+  | >>=-right {A : \Type} (m : Term A) : (m >>= var) = m \with {
+    | var v => idp
+    | unit => idp
+    | app m1 m2 => run { rewrite (>>=-right m1), rewrite (>>=-right m2), idp }
+    | lam m => run { rewrite lift-var, rewrite (>>=-right m), idp }
+  }
+  | >>=-assoc {A B C : \Type} (m : Term A) (k : A -> Term B) (l : B -> Term C) :
+        (m >>= k >>= l) = (m >>= (\lam a => k a >>= l)) \elim m {
+    | var v => idp
+    | unit => idp
+    | app m1 m2 => run { rewrite (>>=-assoc m1), rewrite (>>=-assoc m2), idp }
+    | lam m => run {
+        rewrite (>>=-assoc m (liftM k) (liftM l)),
+        rewrite (path (\lam i a => (aux k l a) @ i)),
+        idp
+    }
+  } \where {
+    \func lift-var {A : \Type} : liftM (var {A}) = var => path (\lam i a =>
+        (\case a \as a'
+          \return liftM (var {A}) a' = var {Maybe A} a' \with { | just x => idp | nothing => idp }
+        ) @ i)
+
+    \func aux {A B C : \Type} (k : A -> Term B) (l : B -> Term C) (a : Maybe A)
+      : (\lam a => liftM k a >>= liftM l) a = liftM (\lam a => k a >>= l) a \elim a
+      | nothing => idp
+      | just a => (
+        (termMap just (k a) >>= liftM l)      ==< {?} >== -- не получилось доказать
+        (termMap just (k a >>=  l))          `qed
+      )
+}
+
+-- 2. Определите отношение многошаговой редукции на Term.
+
+\data Red {V : \Type} (t s : Term V)
+  | red-refl (t = s)
+  | red-step {s' : Term V} (Red1 t s') (Red s' s)
+
+-- 3. Стратегия редукции -- это функция, которая каждому терму сопоставляет либо некоторый терм, к которому он
+--        редуцируется за 1 шаг, либо доказательство, что таких термов нет.
+--    Определите любую стратегию редукции.
+
+\func strategy {V : \Type} (t : Term V) : Decide (\Sigma (s : Term V) (Red1 t s)) \elim t
+  | var v => no (\case __.2 \with {})
+  | unit => no (\case __.2 \with {})
+  | app t1 t2 => \case strategy t1, strategy t2
+                  \return Decide (\Sigma (s : Term V) (Red1 (app t1 t2) s)) \with {
+                  | yes (t1', t1=>t1'), _ => yes (app t1' t2, appLeft t1=>t1' idp)
+                  | no _, yes (t2', t2=>t2') => yes (app t1 t2', appRight idp t2=>t2')
+                  | no t1/=>?, no t2/=>? => case-head-redex t1/=>? t2/=>?
+                 }
+  | lam t => \case strategy t \as t'
+    \with {
+      | yes t' => yes (lam t'.1, lamRed t'.2)
+      | no n => no (\case __ \with {
+                    | (lam t1, lamRed p) => n (t1, p)
+                    | (var _, _) => contradiction | (unit, _) => contradiction | (app _ _, _) => contradiction
+                   })
+    }
+  \where {
+    \func case-head-redex {V : \Type} {t : Term V} {s : Term V} -- почему-то не получилось заинлайнить
+         (t/=>? : Not (\Sigma (s' : Term V) (Red1 t s')))
+         (s/=>? : Not (\Sigma (s' : Term V) (Red1 s s')))
+      : Decide (\Sigma (s' : Term V) (Red1 (app t s) s')) \elim t
+      | var v =>     no (\case __ \with {
+                         | (_, beta _ _ _) => contradiction
+                         | (app _ s', appRight _ s=>s') => s/=>? (s', s=>s')
+                         | (app _ _, appLeft _ _) => contradiction
+                        })
+      | unit =>      no (\case __ \with {
+                         | (_, beta _ _ _) => contradiction
+                         | (app _ s', appRight _ s=>s') => s/=>? (s', s=>s')
+                         | (app _ _, appLeft _ _) => contradiction
+                        })
+      | app t1 t2 => no (\case __ \with {
+                         | (_, beta _ _ _) => contradiction
+                         | (app _ s', appRight _ s=>s') => s/=>? (s', s=>s')
+                         | (app t' _, appLeft t=>t' _) => t/=>? (t', t=>t')
+                        })
+      | lam t => yes (t >>= maybe s var, beta t idp idp)
+  }
+
+-- 4. Докажите, что подтермы достижимого терма достижимы.
+
+\func appAccLeft {V : \Type} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 t \elim a
+  | acc f => acc (\lam t' t=>t' => appAccLeft (f (app t' s) (appLeft t=>t' idp)))
+
+\func appAccRight {V : \Type} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 s \elim a
+  | acc f => acc (\lam s' s=>s' => appAccRight (f (app t s') (appRight idp s=>s')))
+
+\func subLamAcc {V : \Type} {t : Term (Maybe V)} (a : Acc Red1 (lam t)) : Acc Red1 t \elim a
+  | acc f => acc (\lam t' t=>t' => subLamAcc (f (lam t') (lamRed t=>t')))
+
+-- 5. Докажите следующую обобщенную лемму о подстановке и выведите из нее обычную версию:
+--    если Г, (x : A) |- (b : B)  &&   Г |- (a : A),
+--    то   Г |- b[a/x] : B.
+
+\func substLem {U V : \Type} (ctx : U -> Type) (b : Term U) (B : Type) (h : hasType ctx b B)
+               (ctx' : V -> Type) (a : U -> Term V) (h' : \Pi (u : U) -> hasType ctx' (a u) (ctx u))
+  : hasType ctx' (b >>= a) B => {?}
+
+\func substLem1 => {?}
+
+-- 6. Докажите, что если Г |- a : A и Red a a', то Г |- a' : A
+
+\func redLem {V : \Type} {ctx : V -> Type} {a a' : Term V} (r : Red a a') {A : Type} (h : hasType ctx a A)
+  : hasType ctx a' A \elim a, r, h
+  | _, red-refl p, h => transport (\lam x => hasType ctx x A) p h
+  | app _ _, red-step r r1, ap => redLem r1 (redLem1 r ap)
+  | lam _, red-step r r1, h => redLem r1 (redLem1 r h)
+  | var _, red-step () _, _
+  | unit, red-step () r1, _
+  \where {
+    \func redLem1 {V : \Type} {ctx : V -> Type} {a a' : Term V} (r : Red1 a a') {A : Type} (h : hasType ctx a A)
+      : hasType ctx a' A \elim a, a', r, A, h
+      | app _ _, app a'1 a'2, appRight idp r, _, appType h1 h2 => appType (redLem1 r h1) h2
+      | app _ _, app a'1 a'2, appLeft r idp, _, appType h1 h2 => appType h1 (redLem1 r h2)
+      | lam a, lam a', lamRed r, Arr A1 A2, lamType t => lamType (redLem1 r t)
+      | app a1 a2, unit, _, Unit, _ => unitType
+      | app a1 a2, x, beta f idp p1, T, appType h1 (lamType t) => transport (\lam x => hasType ctx x T) p1 (lemma t h1)
+
+    \func lemma {V : \Type} {A T : Type} {ctx : V -> Type} {f : Term (Maybe V)} {a2 : Term V}
+                (p : hasType (maybe A ctx) f T) (q : hasType ctx a2 A)
+      : hasType ctx (f TermMonad.>>= maybe a2 var) T \elim A, T, f, p
+      | _, _, var nothing, varType idp => q
+      | _, _, var (just _), varType idp => varType idp
+      | _, Unit, unit, unitType => unitType
+      | _, _, app f1 f2, appType p1 p2 => appType (lemma p1 q) (lemma p2 q)
+      | A, Arr T1 T2, lam f, lamType p => lamType {?} -- сложно
+                                                      -- hasType (maybe T1 ctx) (f TermMonad.>>= liftM (maybe a2 var)) T2
+  }
