@@ -1,3 +1,4 @@
+\import Function.Meta
 \import Logic.Meta
 \import Meta
 \import Paths.Meta
@@ -155,7 +156,26 @@
 
 \func substLem {U V : \Type} (ctx : U -> Type) (b : Term U) (B : Type) (h : hasType ctx b B)
                (ctx' : V -> Type) (a : U -> Term V) (h' : \Pi (u : U) -> hasType ctx' (a u) (ctx u))
-  : hasType ctx' (b >>= a) B => {?}
+  : hasType ctx' (b >>= a) B \elim b, B, h
+  | unit, Unit, unitType => unitType
+  | var v, T, varType p => run { rewrite (>>=-left v a), rewrite (sym p) (h' v) }
+  | app b1 b2, _, appType h1 h2 => appType (substLem _ b2 _ h1 _ _ h') (substLem _ b1 _ h2 _ _ h')
+  | lam b, Arr B1 B2, lamType h => lamType (substLem _ b B2 h _ (liftM a)
+        (\case __ \as u \return hasType (maybe B1 ctx') (liftM a u) (maybe B1 ctx u) \with {
+          | nothing => varType idp
+          | just a1 => lemma B1 (h' a1)
+        }))
+    \where {
+      \func lemma {V : \Type} {ctx : V -> Type} {T : Type} (B1 : Type) {a : Term V}
+                  (p : hasType ctx a T)
+                  : hasType (maybe B1 ctx) (termMap just a) T \elim T, a, p
+        | Unit, unit, unitType => unitType
+        | _, var _, varType idp => varType idp
+        | _, app _ _, appType p1 p2 => appType (lemma _ p1) (lemma _ p2)
+        | Arr T1 T2, lam a, lamType p => lamType {?} -- сложно
+                            -- hasType (maybe T1 (maybe B1 ctx)) (termMap (maybe nothing (\lam x => just (just x))) a) T2
+    }
+    -- termMap just (a a1)
 
 \func substLem1 => {?}
 
@@ -163,7 +183,7 @@
 
 \func redLem {V : \Type} {ctx : V -> Type} {a a' : Term V} (r : Red a a') {A : Type} (h : hasType ctx a A)
   : hasType ctx a' A \elim a, r, h
-  | _, red-refl p, h => transport (\lam x => hasType ctx x A) p h
+  | _, red-refl p, h => rewrite (sym p) h
   | app _ _, red-step r r1, ap => redLem r1 (redLem1 r ap)
   | lam _, red-step r r1, h => redLem r1 (redLem1 r h)
   | var _, red-step () _, _
@@ -175,7 +195,7 @@
       | app _ _, app a'1 a'2, appLeft r idp, _, appType h1 h2 => appType h1 (redLem1 r h2)
       | lam a, lam a', lamRed r, Arr A1 A2, lamType t => lamType (redLem1 r t)
       | app a1 a2, unit, _, Unit, _ => unitType
-      | app a1 a2, x, beta f idp p1, T, appType h1 (lamType t) => transport (\lam x => hasType ctx x T) p1
+      | app a1 a2, x, beta f idp p1, T, appType h1 (lamType t) => rewrite (sym p1)
           (substLem (maybe _ ctx) f T t ctx (maybe a2 var)
               (\case __ \as u \return hasType ctx (maybe a2 var u) (maybe _ ctx u)
                 \with { | nothing => h1 | just a => varType idp }
