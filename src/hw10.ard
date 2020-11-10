@@ -71,22 +71,39 @@
     | app m1 m2 => run { rewrite (>>=-assoc m1), rewrite (>>=-assoc m2), idp }
     | lam m => run {
         rewrite (>>=-assoc m (liftM k) (liftM l)),
-        rewrite (path (\lam i a => (aux k l a) @ i)),
-        idp
+        pmap (\lam x => lam (m >>= x)) (path (\lam i a =>  (
+          ( \lam s => \case \elim s \return (\lam a => liftM k a >>= liftM l) s  = liftM (\lam a => k a >>= l) s \with {
+              | nothing => idp
+              | just a1 =>
+                \case k a1 \as ka
+                \return (termMap just ka >>= maybe (var nothing) (\lam a => termMap just (l a))) = termMap just (ka >>= l)
+                \with {
+                  | var v => idp
+                  | unit => idp
+                  | app ka1 ka2 => {?}
+                  | lam ka => pmap lam (
+                    \case \elim ka
+                    \return (termMap (maybe nothing (\lam x => just (just x))) ka >>= liftM (maybe (var nothing) (\lam a => termMap just (l a))))
+                           = termMap (maybe nothing (\lam x => just (just x))) (ka >>= liftM l)
+                    \with {
+                      | var v => \case \elim v \with {
+                        | nothing => idp
+                        | just a2 => unfold (liftM) (pmap (\lam x => termMap x (termMap just (l a2))) {?}) -- CONTRADICTION =(
+                      }
+                      | unit => idp
+                      | app ka1 ka2 => {?}
+                      | lam ka => {?}
+                    }
+                  )
+                }
+          }
+          ) : \Pi (a : Maybe A) -> (\lam a => liftM k a >>= liftM l) a  = liftM (\lam a => k a >>= l) a) a @ i))
     }
   } \where {
     \func lift-var {A : \Type} : liftM (var {A}) = var => path (\lam i a =>
         (\case a \as a'
           \return liftM (var {A}) a' = var {Maybe A} a' \with { | just x => idp | nothing => idp }
         ) @ i)
-
-    \func aux {A B C : \Type} (k : A -> Term B) (l : B -> Term C) (a : Maybe A)
-      : (\lam a => liftM k a >>= liftM l) a = liftM (\lam a => k a >>= l) a \elim a
-      | nothing => idp
-      | just a => (
-        (termMap just (k a) >>= liftM l)      ==< {?} >== -- не получилось доказать
-        (termMap just (k a >>=  l))          `qed
-      )
 }
 
 -- 2. Определите отношение многошаговой редукции на Term.
