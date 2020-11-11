@@ -35,7 +35,10 @@
   | var v => var (f v)
   | unit => unit
   | app t1 t2 => app (termMap f t1) (termMap f t2)
-  | lam t => lam (termMap (maybe nothing (\lam x => just (f x))) t)
+  | lam t => lam (termMap (t+=1 f) t)
+    \where {
+      \func t+=1 {A B : \Type} (f : A -> B) => (maybe nothing (\lam x => just (f x)))
+    }
 
 {-
 -- это некорректное определение termMap just
@@ -71,39 +74,31 @@
     | app m1 m2 => run { rewrite (>>=-assoc m1), rewrite (>>=-assoc m2), idp }
     | lam m => run {
         rewrite (>>=-assoc m (liftM k) (liftM l)),
-        pmap (\lam x => lam (m >>= x)) (path (\lam i a =>  (
-          ( \lam s => \case \elim s \return (\lam a => liftM k a >>= liftM l) s  = liftM (\lam a => k a >>= l) s \with {
-              | nothing => idp
-              | just a1 =>
-                \case k a1 \as ka
-                \return (termMap just ka >>= maybe (var nothing) (\lam a => termMap just (l a))) = termMap just (ka >>= l)
-                \with {
-                  | var v => idp
-                  | unit => idp
-                  | app ka1 ka2 => {?}
-                  | lam ka => pmap lam (
-                    \case \elim ka
-                    \return (termMap (maybe nothing (\lam x => just (just x))) ka >>= liftM (maybe (var nothing) (\lam a => termMap just (l a))))
-                           = termMap (maybe nothing (\lam x => just (just x))) (ka >>= liftM l)
-                    \with {
-                      | var v => \case \elim v \with {
-                        | nothing => idp
-                        | just a2 => unfold (liftM) (pmap (\lam x => termMap x (termMap just (l a2))) {?}) -- CONTRADICTION =(
-                      }
-                      | unit => idp
-                      | app ka1 ka2 => {?}
-                      | lam ka => {?}
-                    }
-                  )
-                }
-          }
-          ) : \Pi (a : Maybe A) -> (\lam a => liftM k a >>= liftM l) a  = liftM (\lam a => k a >>= l) a) a @ i))
+        rewrite (path (\lam i a => (
+                        \case a \as s
+                        \return (\lam a => liftM k a >>= liftM l) s  = liftM (\lam a => k a >>= l) s
+                        \with { | nothing => idp | just a1 => aux1 (k a1) l }
+                       ) @ i)),
+        idp
     }
   } \where {
     \func lift-var {A : \Type} : liftM (var {A}) = var => path (\lam i a =>
         (\case a \as a'
           \return liftM (var {A}) a' = var {Maybe A} a' \with { | just x => idp | nothing => idp }
         ) @ i)
+
+    \func aux1 {B C : \Type} (ka : Term B) (l : B -> Term C)
+      : (termMap just ka >>= maybe (var nothing) (\lam a => termMap just (l a))) = termMap just (ka >>= l) \elim ka
+      | var v => idp
+      | unit => idp
+      | app ka1 ka2 => run { rewrite (aux1 ka1 l), rewrite (aux1 ka2 l), idp }
+      | lam ka =>
+            \let
+              | ll => liftM l
+              | rec : (termMap just ka >>= maybe (var nothing) (\lam a => termMap just (ll a))) = termMap just (ka >>= ll) => aux1 ka ll
+            \in
+              ({?} : (lam (termMap (t+=1 just) ka) >>= ll) = lam (termMap (t+=1 just) (ka >>= ll)))
+      \where { \open termMap }
 }
 
 -- 2. Определите отношение многошаговой редукции на Term.
@@ -188,7 +183,7 @@
         | Unit, unit, unitType => unitType
         | _, var _, varType idp => varType idp
         | _, app _ _, appType p1 p2 => appType (lemma _ p1) (lemma _ p2)
-        | Arr T1 T2, lam a, lamType p => lamType {?}
+        | Arr T1 T2, lam a, lamType p => \let t => lemma T1 p \in {?}
                           -- hasType (maybe T1 (maybe B1 ctx)) (termMap (maybe nothing (\lam x => just (just x))) a) T2
     }
 
