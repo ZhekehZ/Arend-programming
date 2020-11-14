@@ -249,47 +249,28 @@
 -- 11. Докажите, что если A является множеством, то List A также им является.
 
 \func List-isSet {A : \Type} (pA : isSet A) : isSet (List A)
-   => \lam x y => retract-isProp ([l=l]-isProp pA) (=->[l=l] pA) ([l=l]->= pA) (l-id=id pA)
+   => \lam x y => retract'-isProp {x = y} {[l=l] x y} (f1 pA x y) (f2 pA x y) (f3 pA x y)
   \where {
     \data [l=l] {A : \Type} (xs ys : List A) \elim xs, ys
       | nil, nil => nil-case
       | cons a xs, cons b ys => cons-case (a = b) ([l=l] xs ys)
 
-    \func [l=l]-isProp {A : \Type} (pA : isSet A) {xs ys : List A} (x y : [l=l] xs ys) : x = y \elim xs, ys, x, y
+    \func f1 {A : \Type} (pA : isSet A) (x y : List A ) (x1 y1 : [l=l] x y) : x1 = y1 \elim x, y, x1, y1
       | nil, nil, nil-case, nil-case => idp
-      | cons a xs, cons a1 ys, cons-case x p1, cons-case y p2
-      => run { rewrite (pA a a1 x y), rewrite ([l=l]-isProp pA p1 p2), idp }
+      | cons a x, cons a1 y, cons-case p x1, cons-case p1 y1
+          => run { rewrite (pA a a1 p p1), rewrite (f1 pA x y x1 y1), idp }
 
-    \func [l=l]->= {A : \Type} (p : isSet A) {xs ys : List A} (x : [l=l] xs ys) : xs = ys \elim xs, ys, x
+    \func f2 {A : \Type} (pA : isSet A) (x y : List A) (p : [l=l] x y) : x = y \elim x, y, p
       | nil, nil, nil-case => idp
-      | cons a xs, cons a1 ys, cons-case p1 x => run { rewrite p1, rewrite ([l=l]->= p x), idp }
+      | cons a x, cons a1 y, cons-case p p1 => run { rewrite p, rewrite (f2 pA x y p1), idp }
 
-    \func =->[l=l] {A : \Type} (p : isSet A) {xs ys : List A} (q : xs = ys) : [l=l] xs ys \elim xs, ys, q
-      | nil, nil, q => nil-case
-      | cons a xs, cons a1 ys, q => cons-case (pmap (headDef a) q) (=->[l=l] p (pmap tail q))
+    \func f3 {A : \Type} (pA : isSet A) (x y : List A) (x1 : x = y) : \Sigma (y1 : [l=l] x y) (f2 pA x y y1 = x1)
+      \elim x1
+      | idp => f3' pA x
 
-    \func tail {A : \Type} (xs : List A) : List A
-      | nil => nil
-      | cons a xs => xs
-
-    \func l-id {A : \Type} {x y : List A} (pA : isSet A) (p : x = y) : x = y => [l=l]->= pA (=->[l=l] pA p)
-
-    \func l-id^2=l-id {A : \Type} {x y : List A} (pA : isSet A) (p : x = y) : (l-id pA) ((l-id pA) p) = (l-id pA) p
-      => pmap ([l=l]->= pA) ([l=l]-isProp pA _ _)
-
-    \func l-id=id {A : \Type} {x y : List A} (pA : isSet A) (p : x = y) : (l-id pA) p = p \elim p
-      | idp => \let | idp' => l-id pA idp
-                    | p1 => (
-                      (idp' *> idp')               ==< idp                >== -- unfold
-                      (l-id pA idp *> l-id pA idp) ==< aux pA idp'        >== -- lemma
-                      (l-id pA (l-id pA idp))      ==< l-id^2=l-id pA idp >== -- idempotency
-                      (l-id pA idp)                ==< idp                >== -- fold
-                      idp' *> idp                  `qed
-                    )
-               \in cancelLeft idp' idp' idp p1
-
-    \func aux {A : \Type} (pA : isSet A) {x y : List A} (p : x = y) : (l-id pA) idp *> p = (l-id pA) p *> idp \elim p
-      | idp => idp
+    \func f3' {A : \Type} (pA : isSet A) (x : List A) : \Sigma (y1 : [l=l] x x) (f2 pA x x y1 = idp) \elim x
+      | nil => (nil-case, idp)
+      | cons a x => \let rec => f3' pA x \in (cons-case idp rec.1, rewrite rec.2 idp)
   }
 
 -- Optional:
