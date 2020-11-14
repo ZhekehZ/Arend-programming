@@ -249,12 +249,7 @@
 -- 11. Докажите, что если A является множеством, то List A также им является.
 
 \func List-isSet {A : \Type} (pA : isSet A) : isSet (List A)
-   => \lam _ _ p1 q1 => (
-        p1          ==< sym (l-id=id pA p1)                      >==
-        l-id pA p1  ==< pmap ([l=l]->= pA) ([l=l]-isProp pA _ _) >==
-        l-id pA q1  ==< l-id=id pA q1                            >==
-        q1          `qed
-   )
+   => \lam x y => retract-isProp ([l=l]-isProp pA) (=->[l=l] pA) ([l=l]->= pA) (l-id=id pA)
   \where {
     \data [l=l] {A : \Type} (xs ys : List A) \elim xs, ys
       | nil, nil => nil-case
@@ -282,22 +277,19 @@
     \func l-id^2=l-id {A : \Type} {x y : List A} (pA : isSet A) (p : x = y) : (l-id pA) ((l-id pA) p) = (l-id pA) p
       => pmap ([l=l]->= pA) ([l=l]-isProp pA _ _)
 
-    \func cancelRight {A : \Type} {x y z : A} (q r : x = y) (p : y = z) (s : q *> p = r *> p) : q = r
-      | idp, _, idp, s => s
-
     \func l-id=id {A : \Type} {x y : List A} (pA : isSet A) (p : x = y) : (l-id pA) p = p \elim p
       | idp => \let | idp' => l-id pA idp
                     | p1 => (
-                      (l-id pA idp *> idp')        ==< idp                >==
-                      (l-id pA idp *> l-id pA idp) ==< aux pA (idp')      >==
-                      (l-id pA (l-id pA idp))      ==< l-id^2=l-id pA idp >==
-                      (l-id pA idp)                ==< idp                >==
-                      idp'                         `qed
+                      (idp' *> idp')               ==< idp                >== -- unfold
+                      (l-id pA idp *> l-id pA idp) ==< aux pA idp'        >== -- lemma
+                      (l-id pA (l-id pA idp))      ==< l-id^2=l-id pA idp >== -- idempotency
+                      (l-id pA idp)                ==< idp                >== -- fold
+                      idp' *> idp                  `qed
                     )
-               \in (cancelRight idp' idp idp' (rewrite (idp-left idp') p1) : idp' = idp)
+               \in cancelLeft idp' idp' idp p1
 
-    \func aux {A : \Type} (pA : isSet A) {x y : List A} (p : x = y) : (l-id pA) idp *> p = (l-id pA) p *> idp
-      | h, idp => idp
+    \func aux {A : \Type} (pA : isSet A) {x y : List A} (p : x = y) : (l-id pA) idp *> p = (l-id pA) p *> idp \elim p
+      | idp => idp
   }
 
 -- Optional:
