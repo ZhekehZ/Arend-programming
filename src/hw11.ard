@@ -265,12 +265,9 @@
       | cons a x, cons a1 y, cons-case p p1 => run { rewrite p, rewrite (f2 pA x y p1), idp }
 
     \func f3 {A : \Type} (pA : isSet A) (x y : List A) (x1 : x = y) : \Sigma (y1 : [l=l] x y) (f2 pA x y y1 = x1)
-      \elim x1
-      | idp => f3' pA x
-
-    \func f3' {A : \Type} (pA : isSet A) (x : List A) : \Sigma (y1 : [l=l] x x) (f2 pA x x y1 = idp) \elim x
-      | nil => (nil-case, idp)
-      | cons a x => \let rec => f3' pA x \in (cons-case idp rec.1, rewrite rec.2 idp)
+      \elim x, x1
+        | nil, idp => (nil-case, idp)
+        | cons a x, idp => \let rec => f3 pA x x idp \in (cons-case idp rec.1, rewrite rec.2 idp)
   }
 
 -- Optional:
