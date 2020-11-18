@@ -276,13 +276,25 @@
 --           Для случая suc n нужно доказать, что если f,g : \Pi (x : A) -> B x, то f = g
 --               эквивалентно \Pi (x : A) -> f x = g x.
 
--- WIP
 \func levelPi {A : \Type} (B : A -> \Type) (n : Nat) (p : \Pi (x : A) -> B x `hasLevel` n)
   : (\Pi (x : A) -> B x) `hasLevel` n \elim n
-  | 0 => \lam a a' a=a' a=a'' => {?}
-  | suc n => \lam f g => {?}
+  | 0 => pi-isSet B p
+  | suc n => \lam f g => lemma2 B (\lam x => p x (f x) (g x)) (lemma B f g)
   \where {
-    \func lemma {A : \Type} (B : A -> \Type) (f g : \Pi (x : A) -> B x)
-      : (f = g) <-> (\Pi (x : A) -> f x = g x)
-    => (\lam p _ => rewrite p idp, \lam p => path (\lam i x => p x @ i))
+      \func lemma {A : \Type} (B : A -> \Type) (f g : \Pi (x : A) -> B x)
+        : \Sigma (a : f = g -> (\Pi (x : A) -> f x = g x))
+                 (b : (\Pi (x : A) -> f x = g x) -> f = g)
+                 (\Pi {x : f = g} -> b (a x) = x)
+      => ( \lam p _ => rewrite p idp
+         , \lam p => path (\lam i x => p x @ i)
+         , \lam {x} => \case \elim f, \elim g, \elim x \with { | f, g, idp => idp }
+         )
+
+      \func lemma2 {A : \Type} {n : Nat} (B : A -> \Type) {f g : \Pi (x : A) -> B x}
+                   (p : \Pi (x : A) -> hasLevel (f x = g x) n)
+                   (q : \Sigma (a : f = g -> \Pi (x : A) -> f x = g x) (b : (\Pi (x : A) -> f x = g x) -> f = g) (\Pi {x : f = g} -> b (a x) = x))
+                   : hasLevel (f = g) n
+        \elim n
+          | 0 => \lam a b => {?}
+          | suc n => \lam x y => {?}
   }

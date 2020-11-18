@@ -1,0 +1,133 @@
+\import Equiv.Univalence
+\import Function.Meta
+\import Logic.Meta
+\import Meta
+\import Paths.Meta
+\import lect03 (Fin, fsuc, fzero)
+\import lect04 (+-comm)
+\import lect11 ()
+\import lect12
+\import Utils \hiding (transport,Or,inl,inr)
+
+-- 1. Докажите, что если A : \Prop, то Trunc A эквивалентен A.
+
+\func trunc-prop {A : \Prop} : Trunc A <-> A => (\case \elim __ \return A\with { | trunc a => a }, trunc)
+
+-- 2. Докажите следующий закон де Моргана.
+
+\func deMorgan (A B C : \Prop) : (\Sigma A (B `Or` C)) <-> ((\Sigma A B) `Or` (\Sigma A C)) => (case-=>, case-<=)
+\where {
+  \func case-=> {A B C : \Prop} (s : \Sigma A (B `Or` C)) : (\Sigma A B) `Or` (\Sigma A C) \elim s
+    | (a, inl a1) => inl (a, a1)
+    | (a, inr b) => inr (a, b)
+
+  \func case-<= {A B C : \Prop} (s : (\Sigma A B) `Or` (\Sigma A C)) : \Sigma A (B `Or` C) \elim s
+    | inl (a, b) => (a, inl b)
+    | inr (a, c) => (a, inr c)
+}
+
+-- 3. Определите элиминатор для Or через Or-rec, не используя паттерн матчинг на Or.
+
+\func Or-elim {A B : \Prop} (C : Or A B -> \Prop)
+              (f : \Pi (x : A) -> C (inl x)) (g : \Pi (y : B) -> C (inr y))
+              (p : A `Or` B) : C p =>
+                \let lem => Or-rec {A} {B} {\Sigma (p : A `Or B) (C p)}
+                  (\lam a => (inl a, f a)) (\lam b => (inr b, g b)) p
+                \in rewrite (Path.inProp p lem.1) lem.2
+
+-- 4. Докажите, что тип утверждений является множеством.
+
+\func prop-isSet : isSet \Prop => \lam x y => rewrite (QEquiv-to-= (univalence {x} {y})) Path.inProp
+
+-- 5. Докажите, что функции Prop1-to-Prop2 и Prop2-to-Prop1 взаимно обратны и, как следствие, что Prop1 = Prop2.
+
+\func [P2->P1]-o-[P1->P2]=id (P : \Prop) : Prop2-to-Prop1 (Prop1-to-Prop2 P) = P
+  => propExt (\case __ \with { | inc a => a }) inc
+
+\func [P1->P2]-o-[P2->P1]=id (P : Prop2) : Prop1-to-Prop2 (Prop2-to-Prop1 P) = P \elim P
+  | (p, isP) => unfold (Prop1-to-Prop2) {?}
+
+\func Prop1=Prop2 : Prop1 = Prop2 => equivalence=>equality Prop1 Prop2
+    (Prop1-to-Prop2, Prop2-to-Prop1, [P2->P1]-o-[P1->P2]=id, [P1->P2]-o-[P2->P1]=id)
+
+-- Можно сделать только одно из упражнений 6a,6b на выбор.
+-- 6a. Тип С называется когенератором, если для любых множеств A и B и любых функция f,g : A -> B верно,
+--        что если h `o` f = h `o` g для всех h : B -> C, то f = g.
+--     Докажите, что \Prop является когенератором.
+
+\func \fixr 9 o {A B C : \Type} (g : B -> C) (f : A -> B) => \lam a => g (f a)
+
+\func isCogenerator (C : \Type) => \Pi {A B : \Set} (f g : A -> B) (p : \Pi (h : B -> C) -> h `o` f = h `o` g) -> f = g
+
+\func PropIsCogenerator : isCogenerator \Prop => {?}
+
+-- 6b. Тип X называется инъективным, если для любой функции f : A -> X и любой инъекции i : A -> B сущесвует функция l : B -> X такая, что l `o` i = f.
+--     Докажите, что \Prop инъективен.
+
+\func isInj {A B : \Type} (f : A -> B) => \Pi (x y : A) -> f x = f y -> x = y
+
+\func isInjective (X : \Type) => \Pi {A B : \Type} (f : A -> X) (i : A -> B) (p : isInj i) -> \Sigma (l : B -> X) (l `o` i = f)
+
+\func Prop-isInjective : isInjective \Prop => {?}
+
+-- Можно сделать только одно из упражнений 7a,7b на выбор.
+-- 7a. Докажите, что (Bool = Bool) = Bool.
+
+\func BoolAut : (Bool = Bool) = Bool =>
+  \let eq2 => equivalence=>equality Bool Bool (not, not, not-not, not-not)
+  \in equivalence=>equality (Bool = Bool) Bool
+    (\lam p => {?}, if __ idp eq2, {?}, {?})
+
+-- 7b. Докажите, что (n+m)-элементное множество равно размеченному объединению n- и m-элементных множеств.
+
+\func th-7b {n m : Nat} : Either (Fin n) (Fin m) = Fin (n + m) =>
+  equivalence=>equality (Either (Fin n) (Fin m)) (Fin (n + m))
+    ( fromEither
+    , toEither
+    , {?}
+    , {?}
+    )
+    \where {
+      \open Nat
+      \open Either
+
+      \func fromEither {n m : Nat} (f : Either (Fin n) (Fin m)) : Fin (n + m) \elim f
+        | inl a => inject-id a
+        | inr b => inject-shift n b
+
+      \func inject-id {n m : Nat} (f : Fin n) : Fin (n + m) \elim n, m, f
+        | suc n, 0, f => f
+        | suc n, suc m, fzero => fzero
+        | suc n, m, fsuc f => rewrite (sym (suc[n+m]=suc[n]+m n m)) (fsuc (inject-id f))
+
+      \func inject-shift (n : Nat) {m : Nat} (f : Fin m) : Fin (n + m) \elim n, m, f
+        | 0, m, f => rewrite (+-comm 0 m) f
+        | suc n, m, f => rewrite (sym (suc[n+m]=suc[n]+m n m)) (fsuc (inject-shift n f))
+
+      \func toEither {n m : Nat} (f : Fin (n + m)) : Either (Fin n) (Fin m) => toEither' (rewrite (+-comm m n) f)
+
+      \func toEither' {n m : Nat} (f : Fin (m + n)) : Either (Fin n) (Fin m) \elim n, m, f
+        | 0, m, f => inr f
+        | suc n, m, fzero => inl fzero
+        | suc n, m, fsuc f => \case toEither' f \with { | inl a => inl (fsuc a) | inr b => inr b }
+
+      \func Fin->Nat {n : Nat} (f : Fin n) : \Sigma (k : Nat) (k < n)
+        | {suc n}, fzero => (0, suc<=suc zero<=_)
+        | {suc n}, fsuc f => \let r => Fin->Nat f \in (suc r.1, suc<=suc r.2)
+
+      \func Nat->Fin {n : Nat} (nt : \Sigma (k : Nat) (k < n)) : Fin n
+        | {0}, (_, _) => contradiction
+        | {suc n}, (0, x) => fzero
+        | {suc n}, (suc k, suc<=suc x) => fsuc (Nat->Fin (k, x))
+
+
+      \func test1 : inject-id {10} {20} fzero = (fzero : Fin 30) => idp
+      \func test2 : inject-id {10} {20} (fsuc fzero) = (fsuc fzero : Fin 30) => idp
+      \func test3 : inject-shift 4 {20} (fsuc fzero) = (fsuc (fsuc (fsuc (fsuc (fsuc fzero)))) : Fin 24) => idp
+
+      \func suc[n+m]=suc[n]+m (n m : Nat) : suc (n + m) = suc n + m
+        | _, 0 => idp
+        | n, suc m => pmap suc (suc[n+m]=suc[n]+m n m)
+
+
+    }
