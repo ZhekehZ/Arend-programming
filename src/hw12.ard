@@ -5,7 +5,7 @@
 \import Paths.Meta
 \import lect03 (Fin, fsuc, fzero)
 \import lect04 (+-comm)
-\import lect11 ()
+\import lect11 (funExt)
 \import lect12
 \import Utils \hiding (transport,Or,inl,inr)
 
@@ -61,14 +61,30 @@
 
 \func PropIsCogenerator : isCogenerator \Prop => {?}
 
--- 6b. Тип X называется инъективным, если для любой функции f : A -> X и любой инъекции i : A -> B сущесвует функция l : B -> X такая, что l `o` i = f.
+-- 6b. Тип X называется инъективным, если для любой функции f : A -> X и любой инъекции i : A -> B сущесвует функция
+--        l : B -> X такая, что l `o` i = f.
 --     Докажите, что \Prop инъективен.
+{-
+      A c--i--> B
+       \       /         l = ?
+      f \     / l        l|Im(i) = inv(i) `o` f
+         \   /           inv(i) : Im(i) -> A = ???
+          v v
+         \Prop
+-}
+
 
 \func isInj {A B : \Type} (f : A -> B) => \Pi (x y : A) -> f x = f y -> x = y
 
 \func isInjective (X : \Type) => \Pi {A B : \Type} (f : A -> X) (i : A -> B) (p : isInj i) -> \Sigma (l : B -> X) (l `o` i = f)
 
-\func Prop-isInjective : isInjective \Prop => {?}
+\func Prop-isInjective : isInjective \Prop => \lam {A} {B} f i p
+  => \let l => inj-left-inv i p
+     \in (f `o` l.1, funExt (\lam _ => \Prop) (f `o` l.1 `o` i) f (\lam x => pmap f (l.2 x)))
+  \where {
+    \func inj-left-inv {A B : \Type} (f : A -> B) (f-inj : isInj f) : \Sigma (g : B -> A) (\Pi (x : A) -> g (f x) = x)
+      => {?}
+  }
 
 -- Можно сделать только одно из упражнений 7a,7b на выбор.
 -- 7a. Докажите, что (Bool = Bool) = Bool.
