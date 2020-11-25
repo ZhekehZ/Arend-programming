@@ -1,0 +1,220 @@
+\import Algebra.Meta
+\import Function.Meta
+\import Logic.Meta
+\import Meta
+\import Paths (transportInv)
+\import Paths.Meta
+\import Utils
+\import hw05 (In, contrProp)
+\import hw12 (prop-isSet)
+\import lect11 (isProp)
+\import lect12 (Equiv, exists)
+\import lect13
+
+-- 1. Определите функцию negPred : Int -> Int такую, что negPred x = x, если x > 0, и negPred x = x - 1, если x <= 0.
+
+\func negPred (x : Int) : Int \elim x
+  | pos 0 => neg 1
+  | pos (suc n) => pos (suc n)
+  | neg n => neg (suc n)
+
+\func test1 : negPred (pos 5) = pos 5 => idp
+\func test2 : negPred (pos 0) = neg 1 => idp
+\func test3 : negPred (neg 5) = neg 6 => idp
+
+-- 2. Определите функции сложения и умножения для Int.
+
+\func \infixl 6 + (x y : Int) : Int \with
+  | pos x,       pos y       => pos (x Nat.+ y)
+  | pos (suc x), neg (suc y) => pos x + neg y
+  | neg (suc x), pos (suc y) => neg x + pos y
+  | neg (suc x), neg (suc y) => neg (x Nat.+ y)
+  | pos 0      , neg n       => neg n
+  | neg (suc x), pos 0       => neg (suc x)
+
+\func \infixl 7 * (x y : Int) : Int \with
+  | pos x,       pos y       => pos (x Nat.* y)
+  | pos x,       neg (suc y) => neg (x Nat.* suc y)
+  | neg (suc x), pos y       => neg (suc x Nat.* y)
+  | neg (suc x), neg (suc y) => pos (x Nat.* y)
+
+
+\func test4 : pos 5 + pos 6 = pos 11 => idp
+\func test5 : pos 5 + pos 0 = pos 5  => idp
+\func test6 : pos 5 + neg 8 = neg 3  => idp
+
+\func test7 : pos 5 * pos 3 = pos 15 => idp
+\func test8 : pos 5 * pos 0 = pos 0  => idp
+\func test9 : pos 5 * neg 6 = neg 30 => idp
+
+-- 3. Определите тип данных BinNat для бинарных натуральных чисел.
+--    У него должно быть три конструктора: для 0, для чисел вида 2*n и чисел вида 2*n+1.
+--    Такой тип данных содержит несколько различных представлений для нуля.
+--    Используйте типы данных с условиями, чтобы вычислительно отождествить различные нули.
+
+\data Even (n : Nat) \elim n
+  | 0 => even!
+  | suc (suc n) => even? (Even n)
+
+\data Odd (n : Nat) \elim n
+  | suc n => odd! (Even n)
+
+\data BinNat
+  | zero
+  | even (n : Nat) (p : Even n) \elim n { | 0 => zero }
+  | odd (n : Nat) (p : Odd n)
+
+\func test10 : BinNat => odd 5 (odd! $ even? $ even? even!)
+\func test11 : BinNat => even 4 (even? $ even? even!)
+\func test12 : zero = even 0 even! => idp
+
+-- 4. Докажите, что функция pred сюръективна.
+
+\func pred (n : Nat) : Nat
+  | 0 => 0
+  | suc n => n
+
+\func pred-is-sur : isSur pred => \lam b => in (suc b, idp)
+
+-- 5. Докажите, что функция suc не сюръективна.
+
+\func suc-is-not-sur (p : isSur suc) : Empty => \case p 0 \with { | in (x, y) => contradiction }
+
+-- 6. Пусть f : A -> B и g : B -> C ─ некоторые функции.
+--    Докажите, что если f и g сюръективны, то g `o` f также сюръективна.
+--    Докажите, что если g `o` f сюръективна, то g также сюръективна.
+
+\func \fixr 9 o {A B C : \Type} (g : B -> C) (f : A -> B) => \lam a => g (f a)
+
+\func o-sur {A B C : \Type} (f : A -> B) (g : B -> C) (p : isSur f) (q : isSur g) : isSur (g `o` f)
+  => \lam c => \case q c \with {
+    | in (b, t) => \case p b \with {
+      | in (a, r) => in (a, rewrite r t : g (f a) = c )
+    }
+  }
+
+\func o-sur' {A B C : \Type} (f : A -> B) (g : B -> C) (p : isSur (g `o` f)) : isSur g
+  => \lam c => \case p c \with { | in (a, t) => in (f a, t) }
+
+-- 7. Определите множество конечных подмножеств множества A, то есть списков элементов A с точностью до перестановок и повторений элементов.
+
+\data eqListsAsSets {A : \Type} (l1 l2 : List A)
+  | equal-sets (\Pi {a : A} -> In a l1 <-> In a l2)
+
+\truncated \data Set (A : \Set) : \Set
+  | set (l : List A)
+  | eq-set (l1 l2 : List A) (p : eqListsAsSets l1 l2) (i : I) \elim i {
+    | left => set l1
+    | right => set l2
+  }
+
+-- 8. Докажите теорему Кантора.
+
+-- Теорема Кантора говорит, что для любого множества A мощность множества его подмножеств строго больше, чем мощность A.
+
+-- Множество подмножеств можно определить следующим образом:
+
+\func Subs (A : \Set) => A -> \Prop
+
+-- Формально утверждение теоремы Кантора состоит из двух частей:
+-- "существует инъекция из A в Subs A" и "не существует сюръекции из A в Subs A".
+
+\func cantor1 (A : \Set) : \Sigma (f : A -> Subs A) (isInj f)
+  => (\lam a => \lam a' => a = a', \lam x y p => rewrite (pmap (\lam f => f y) p) idp)
+
+
+\func cantor2 (A : \Set) (f : A -> Subs A) (p : isSur f) : Empty
+  => \let | in:_B : Subs A => \lam x => Not (x in: f x)
+     \in \case p in:_B \with {
+      | in (y, fy=B) =>
+        \let | y_in:_fy : y in: f y = y `in:_B => pmap (\lam f => f y) fy=B
+             | B->~B :      y `in:_B  -> Not (y `in:_B) => transportInv Not (sym y_in:_fy)
+             | ~B->B : Not (y `in:_B) ->      y `in:_B  => transportInv Not y_in:_fy
+        \in contrProp B->~B ~B->B
+    }
+    \where { \func \infix 5 in: {A : \Set} (x : A) (B : Subs A) => B x }
+
+-- Optional
+-- 9. Постройте функции Nat -> BinNat и BinNat -> Nat и докажите, что они взаимно обратны.
+
+\func NatToBinNat (n : Nat) : BinNat
+  | 0 => zero
+  | 1 => odd 1 (odd! even!)
+  | suc (suc n) => \case NatToBinNat n \with {
+    | zero                  => even 2 (even? even!)
+    | even (suc n) isEven   => even (suc (suc (suc n))) (even? isEven)
+    | odd  (suc n) (odd! e) => odd (suc (suc (suc n))) (odd! (even? e))
+    | odd 0 ()
+  }
+
+\func BinNatToNat (b : BinNat) : Nat
+  | zero => 0
+  | even n p => n
+  | odd n p => n
+
+\func nbn (n : Nat) : BinNatToNat (NatToBinNat n) = n \elim n
+  | 0 => idp
+  | 1 => idp
+  | suc (suc n) => aux n (NatToBinNat n) idp
+    \where {
+      \func aux (n : Nat) (b : BinNat) (p : NatToBinNat n = b) : BinNatToNat (NatToBinNat (suc (suc n))) = suc (suc n)
+        \elim n, b
+          | 0, zero => idp
+          | 0, even n p1 => idp
+          | 0, odd n p1 => idp
+          | n, zero => \let rec => rewrite (nbn n) (pmap BinNatToNat p) \in rewrite p (rewrite rec idp)
+          | suc n, even (suc n1) p1 => \let rec => rewrite (nbn (suc n)) (pmap BinNatToNat p)
+                                       \in rewrite p (sym (pmap (\lam x => suc (suc x)) rec))
+          | n, odd (suc n1) (odd! e) => \let rec => rewrite (nbn n) (pmap BinNatToNat p)
+                                        \in rewrite p (sym (pmap (\lam x => suc (suc x)) rec))
+          | n, odd 0 ()
+    }
+
+\func bnb (b : BinNat) : NatToBinNat (BinNatToNat b) = b
+  | zero => idp
+  | even 0 p => idp
+  | odd 1 (odd! even!) => idp
+  | even (suc (suc n)) (even? p) => aux n (NatToBinNat n) p idp
+  | odd (suc (suc n)) (odd! e) => aux2 n (NatToBinNat n) e idp
+  | even 1 p => contradiction
+  | odd 0 ()
+  \where {
+    \func aux (n : Nat) (b : BinNat) (p : Even n) (q : NatToBinNat n = b)
+      : NatToBinNat (BinNatToNat (even (suc (suc n)) (even? p))) = even (suc (suc n)) (even? p)
+      | 0, zero, even!, q => idp
+      | 0, even n p, even!, q => idp
+      | 0, odd n p, even!, ()
+      | suc n, even (suc n1) p, p1, q => \let rec => rewrite (nbn (suc n)) (pmap BinNatToNat q)
+                                              | n=n1 => pmap pred rec
+                                         \in rewrite q (\case \elim n, \elim p, \elim p1, \elim n=n1 \with {
+                                            | n, p, q, idp => rewrite (Even-isProp p q) idp
+                                          })
+      | suc n, odd (suc n1) (odd! e), p1, q => \let rec => rewrite (nbn (suc n)) (pmap BinNatToNat q)
+                                               \in \case Even&Even-suc e (transport Even rec p1) \with {}
+      | suc n, zero, p, q => \let rec => rewrite (nbn (suc n)) (pmap BinNatToNat q) \in contradiction
+      | suc n, odd 0 (), p1, q
+
+
+    \func aux2 (n : Nat) (b : BinNat) (p : Even (suc n)) (q : NatToBinNat n = b)
+      : NatToBinNat (BinNatToNat (odd (suc (suc n)) (odd! p))) = odd (suc (suc n)) (odd! p)
+      | 0, zero, (), q
+      | suc n, zero, even? p, q => \let rec => rewrite (nbn (suc n)) (pmap BinNatToNat q) \in contradiction
+      | suc n, even (suc n1) p, even? p1, q => \let rec => rewrite (nbn (suc n)) (pmap BinNatToNat q)
+                                               \in \case Even&Even-suc p1 (transport Even (sym rec) p) \with {}
+      | suc n, odd (suc n1) (odd! e), even? p1, q => \let rec => rewrite (nbn (suc n)) (pmap BinNatToNat q)
+                                                          | n=n1 => pmap pred rec
+                                                    \in rewrite q (\case \elim n, \elim e, \elim p1, \elim n=n1 \with {
+                                                      | _, p, q, idp =>  rewrite (Even-isProp p q) idp
+                                                    })
+      | suc n, odd 0 (), _, _
+
+    \func Even&Even-suc {n : Nat} (p1 : Even n) (p2 : Even (suc n)) : Empty
+      | {0}, even!, ()
+      | {1}, (), _
+      | {suc (suc n)}, even? p1, even? p2 => Even&Even-suc p1 p2
+
+    \func Even-isProp {n : Nat} (x y : Even n) : x = y \elim n, x, y
+        | 0, even!, even! => idp
+        | 1, (), _
+        | suc (suc n), even? x, even? y => pmap even? (Even-isProp x y)
+  }
