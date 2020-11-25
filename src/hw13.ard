@@ -8,7 +8,7 @@
 \import hw05 (In, contrProp)
 \import hw12 (prop-isSet)
 \import lect11 (isProp)
-\import lect12 (Equiv, exists)
+\import lect12 (Equiv, equivalence=>equality, exists)
 \import lect13
 
 -- 1. Определите функцию negPred : Int -> Int такую, что negPred x = x, если x > 0, и negPred x = x - 1, если x <= 0.
@@ -218,3 +218,5 @@
         | 1, (), _
         | suc (suc n), even? x, even? y => pmap even? (Even-isProp x y)
   }
+
+\func BinNat=Nat : BinNat = Nat => equivalence=>equality BinNat Nat (BinNatToNat, NatToBinNat, bnb, nbn)
