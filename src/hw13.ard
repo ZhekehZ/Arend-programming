@@ -166,10 +166,7 @@
 \func nbn (n : Nat) : BinNatToNat (NatToBinNat n) = n \elim n
   | 0 => idp
   | Nat.suc n => run { rewrite suc-is-bsuc, rewrite (nbn n), idp }
-  \where {
-    \open NatToBinNat
-    \open BinNatToNat
-  }
+  \where { \open BinNatToNat }
 
 \func bnb (b : BinNat) : NatToBinNat (BinNatToNat b) = b
   | bin: => idp
