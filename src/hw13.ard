@@ -10,6 +10,7 @@
 \import lect11 (isProp)
 \import lect12 (Equiv, equivalence=>equality, exists)
 \import lect13
+\import Prelude \using (I \as Interval) \hiding (Int, pos, neg)
 
 -- 1. Определите функцию negPred : Int -> Int такую, что negPred x = x, если x > 0, и negPred x = x - 1, если x <= 0.
 
@@ -52,21 +53,14 @@
 --    Такой тип данных содержит несколько различных представлений для нуля.
 --    Используйте типы данных с условиями, чтобы вычислительно отождествить различные нули.
 
-\data Even (n : Nat) \elim n
-  | 0 => even!
-  | suc (suc n) => even? (Even n)
-
-\data Odd (n : Nat) \elim n
-  | suc n => odd! (Even n)
-
 \data BinNat
-  | zero
-  | even (n : Nat) (p : Even n) \elim n { | 0 => zero }
-  | odd (n : Nat) (p : Odd n)
+  | bin:
+  | O (b : BinNat) \elim b { bin: => bin: }
+  | I (b : BinNat)
 
-\func test10 : BinNat => odd 5 (odd! $ even? $ even? even!)
-\func test11 : BinNat => even 4 (even? $ even? even!)
-\func test12 : zero = even 0 even! => idp
+\func test10 : bin: `I = bin: `O `I => idp
+\func test11 : bin: `O = bin: `O `O `O `O `O => idp
+\func test12 : bin: `I `O `I `O = bin: `O `I `O `I `O => idp
 
 -- 4. Докажите, что функция pred сюръективна.
 
@@ -103,7 +97,7 @@
 
 \truncated \data Set (A : \Set) : \Set
   | set (l : List A)
-  | eq-set (l1 l2 : List A) (p : eqListsAsSets l1 l2) (i : I) \elim i {
+  | eq-set (l1 l2 : List A) (p : eqListsAsSets l1 l2) (i : Interval) \elim i {
     | left => set l1
     | right => set l2
   }
@@ -137,86 +131,50 @@
 -- Optional
 -- 9. Постройте функции Nat -> BinNat и BinNat -> Nat и докажите, что они взаимно обратны.
 
+
+
 \func NatToBinNat (n : Nat) : BinNat
-  | 0 => zero
-  | 1 => odd 1 (odd! even!)
-  | suc (suc n) => \case NatToBinNat n \with {
-    | zero                  => even 2 (even? even!)
-    | even (suc n) isEven   => even (suc (suc (suc n))) (even? isEven)
-    | odd  (suc n) (odd! e) => odd (suc (suc (suc n))) (odd! (even? e))
-    | odd 0 ()
+  | 0 => bin: `O
+  | suc n => bsuc (NatToBinNat n)
+  \where {
+    \open Nat
+
+    \func bsuc (n : BinNat) : BinNat
+      | bin: => bin: `I
+      | O b => b `I
+      | I b => bsuc b `O
   }
 
 \func BinNatToNat (b : BinNat) : Nat
-  | zero => 0
-  | even n p => n
-  | odd n p => n
+  | bin: => 0
+  | O b => 2 Nat.* BinNatToNat b
+  | I b => suc (2 Nat.* BinNatToNat b)
+  \where {
+    \open NatToBinNat
+    \open Nat
+
+    \func suc-is-bsuc {b : BinNat} : BinNatToNat (bsuc b) = suc (BinNatToNat b) \elim b
+      | bin: => idp
+      | O b => idp
+      | I b => rewrite suc-is-bsuc idp
+
+    \func *2=append0 {n : Nat} : NatToBinNat (2 * n) = NatToBinNat n `O \elim n
+      | 0 => idp
+      | suc n => rewrite *2=append0 idp
+  }
 
 \func nbn (n : Nat) : BinNatToNat (NatToBinNat n) = n \elim n
   | 0 => idp
-  | 1 => idp
-  | suc (suc n) => aux n (NatToBinNat n) idp
-    \where {
-      \func aux (n : Nat) (b : BinNat) (p : NatToBinNat n = b) : BinNatToNat (NatToBinNat (suc (suc n))) = suc (suc n)
-        \elim n, b
-          | 0, zero => idp
-          | 0, even n p1 => idp
-          | 0, odd n p1 => idp
-          | n, zero => \let rec => rewrite (nbn n) (pmap BinNatToNat p) \in rewrite p (rewrite rec idp)
-          | suc n, even (suc n1) p1 => \let rec => rewrite (nbn (suc n)) (pmap BinNatToNat p)
-                                       \in rewrite p (sym (pmap (\lam x => suc (suc x)) rec))
-          | n, odd (suc n1) (odd! e) => \let rec => rewrite (nbn n) (pmap BinNatToNat p)
-                                        \in rewrite p (sym (pmap (\lam x => suc (suc x)) rec))
-          | n, odd 0 ()
-    }
+  | Nat.suc n => run { rewrite suc-is-bsuc, rewrite (nbn n), idp }
+  \where {
+    \open NatToBinNat
+    \open BinNatToNat
+  }
 
 \func bnb (b : BinNat) : NatToBinNat (BinNatToNat b) = b
-  | zero => idp
-  | even 0 p => idp
-  | odd 1 (odd! even!) => idp
-  | even (suc (suc n)) (even? p) => aux n (NatToBinNat n) p idp
-  | odd (suc (suc n)) (odd! e) => aux2 n (NatToBinNat n) e idp
-  | even 1 p => contradiction
-  | odd 0 ()
-  \where {
-    \func aux (n : Nat) (b : BinNat) (p : Even n) (q : NatToBinNat n = b)
-      : NatToBinNat (BinNatToNat (even (suc (suc n)) (even? p))) = even (suc (suc n)) (even? p)
-      | 0, zero, even!, q => idp
-      | 0, even n p, even!, q => idp
-      | 0, odd n p, even!, ()
-      | suc n, even (suc n1) p, p1, q => \let rec => rewrite (nbn (suc n)) (pmap BinNatToNat q)
-                                              | n=n1 => pmap pred rec
-                                         \in rewrite q (\case \elim n, \elim p, \elim p1, \elim n=n1 \with {
-                                            | n, p, q, idp => rewrite (Even-isProp p q) idp
-                                          })
-      | suc n, odd (suc n1) (odd! e), p1, q => \let rec => rewrite (nbn (suc n)) (pmap BinNatToNat q)
-                                               \in \case Even&Even-suc e (transport Even rec p1) \with {}
-      | suc n, zero, p, q => \let rec => rewrite (nbn (suc n)) (pmap BinNatToNat q) \in contradiction
-      | suc n, odd 0 (), p1, q
-
-
-    \func aux2 (n : Nat) (b : BinNat) (p : Even (suc n)) (q : NatToBinNat n = b)
-      : NatToBinNat (BinNatToNat (odd (suc (suc n)) (odd! p))) = odd (suc (suc n)) (odd! p)
-      | 0, zero, (), q
-      | suc n, zero, even? p, q => \let rec => rewrite (nbn (suc n)) (pmap BinNatToNat q) \in contradiction
-      | suc n, even (suc n1) p, even? p1, q => \let rec => rewrite (nbn (suc n)) (pmap BinNatToNat q)
-                                               \in \case Even&Even-suc p1 (transport Even (sym rec) p) \with {}
-      | suc n, odd (suc n1) (odd! e), even? p1, q => \let rec => rewrite (nbn (suc n)) (pmap BinNatToNat q)
-                                                          | n=n1 => pmap pred rec
-                                                    \in rewrite q (\case \elim n, \elim e, \elim p1, \elim n=n1 \with {
-                                                      | _, p, q, idp =>  rewrite (Even-isProp p q) idp
-                                                    })
-      | suc n, odd 0 (), _, _
-
-    \func Even&Even-suc {n : Nat} (p1 : Even n) (p2 : Even (suc n)) : Empty
-      | {0}, even!, ()
-      | {1}, (), _
-      | {suc (suc n)}, even? p1, even? p2 => Even&Even-suc p1 p2
-
-    \func Even-isProp {n : Nat} (x y : Even n) : x = y \elim n, x, y
-        | 0, even!, even! => idp
-        | 1, (), _
-        | suc (suc n), even? x, even? y => pmap even? (Even-isProp x y)
-  }
+  | bin: => idp
+  | O b => run { rewrite *2=append0, rewrite (bnb b), idp }
+  | I b => run { rewrite *2=append0, rewrite (bnb b), idp }
+    \where { \open BinNatToNat }
 
 \func BinNat=Nat : BinNat = Nat => equivalence=>equality BinNat Nat (BinNatToNat, NatToBinNat, bnb, nbn)
