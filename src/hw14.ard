@@ -1,10 +1,13 @@
+\import Data.Bool (Bool, false, true)
 \import Logic.Meta
 \import Meta
 \import Paths.Meta
+\import Set
+\import Set.Fin
 \import Utils
 \import lect04 (true/=false)
 \import lect11 (funExt)
-\import lect12 (equivalence=>equality, exists)
+\import lect12 (DecEq, equivalence=>equality, exists)
 \import lect13
 \import lect14
 
@@ -71,36 +74,138 @@
       => \let | t' => (p a).2 (here idp) \in contradiction
   }
 
--- 5. Определите функцию union {A : \Set} : S A -> S A -> S A для произвольного S A (удовлетворяющего FinSetSpec) и для ListSet.
+-- 5. Определите функцию union {A : \Set} : S A -> S A -> S A для
+--        произвольного S A (удовлетворяющего FinSetSpec) и для ListSet.
 
 \func union {S : FinSetSpec} (s1 s2 : S) : S =>
             rewriteI listSet=Set (unionListSet (rewrite listSet=Set s1) (rewrite listSet=Set s2))
 
-\func unionListSet {A : \Set} (s1 s2 : ListSet A) : ListSet A \elim s1, s2
-  | inR nil, set => set
-  | inR (cons a nil), set => add a set
-  | inR (cons a (cons a1 a2)), set => unionListSet (inR a2) (add a1 (add a set))
-  | eq nil nil r i, set => set
-  | eq nil (cons a nil) r i, s2 => \let t => absurd {s2 = add a s2} (\case (r a).2 (here idp) \with {}) \in t @ i
-  | eq nil (cons a (cons a1 l)) r i, s2 => \let t => absurd {s2 = unionListSet (inR l) (add a1 (add a s2))} (\case (r a).2 (here idp) \with {}) \in  {?}
-  | eq (cons a l) a' r i, s2 => {?}
+\func unionListSet {A : \Set} (s1 s2 : ListSet A) : ListSet A
+  | inR a, inR nil => inR a
+  | inR nil, inR a => inR a
+  | inR as1, inR (cons a as2) => add a (unionListSet (inR as1) (inR as2))
+  | eq s1 s2 r i, inR a => {?}
+  | inR as, eq s1 s2 r i => {?}
 
--- 6. Определите функцию intersection {A : DecSet} : S A -> S A -> S A для произвольного S A (удовлетворяющего FinSetSpec) и для ListSet.
+-- 6. Определите функцию intersection {A : DecSet} : S A -> S A -> S A для произвольного S A
+--      (удовлетворяющего FinSetSpec) и для ListSet.
 
-\func intersection {S : FinSetSpec} (s1 s2 : S) : S =>
-  rewriteI listSet=Set (intersectionListSet (rewrite listSet=Set s1) (rewrite listSet=Set s2))
+--\func intersection {S : FinSetSpec} {A : DecSet} (s1 s2 : S) : S =>
+--  rewriteI listSet=Set (intersectionListSet (rewrite listSet=Set s1) (rewrite listSet=Set s2))
 
 
-\func intersectionListSet {A : \Set} (s1 s2 : ListSet A) : ListSet A \elim s1, s2
-  | inR a, inR a1 => {?}
-  | inR a, eq a1 a' r i => {?}
+\func intersectionListSet {A : DecSet} (s1 s2 : ListSet A) : ListSet A \elim s1, s2
+  | inR a, inR a1 => inR (intersectLists a a1)
+  | inR a, eq a1 a' r i => prop1 a _ _ r @ i
   | eq a a' r i, inR a1 => {?}
+  \where {
+    \open Data.Bool
+    \func intersectLists {A : DecSet} (l1 l2 : List A): List A \elim l1
+      | nil => nil
+      | cons a l1 => \case search a l2 \with {
+        | false => intersectLists l1 l2
+        | true => cons a (intersectLists l1 l2)
+      }
+    \func search {A : DecSet} (a : A) (l : List A): Bool
+      | a, nil => false
+      | a, cons b l => \case decideEq a b \with {
+        | yes _ => true
+        | no _ => search a l
+      }
 
--- 7. Мы не можем определить функция size в общем случае, но мы можем определить предикат S -> Nat -> \Prop, соответствующий \lam xs n => size xs <= n.
+    \func prop2 {A : DecSet} (a : A) (l : List A) (p : search a l = false): Not (isElem a (inR l))
+      | a, nil, p => \lam i => contradiction
+      | a, cons a1 l, p => \lam i => \case \elim i \with {
+        | here p1 =>
+          \case decideEq a a1 \as dec
+              , p : (\case dec \with { | yes _ => true | no _ => search a l }) = false
+          \with {
+          | yes e, p2 => contradiction
+          | no n, p2 => \let t => rewrite p1 n \in contradiction
+        }
+        | there i =>
+          \case decideEq a a1 \as dec
+          , p : (\case dec \with { | yes _ => true | no _ => search a l }) = false
+          \with {
+            | yes e, p2 => contradiction
+            | no n, p2 => prop2 a l p2 i
+          }
+      }
+
+    \func prop1 {A : DecSet} (x y z : List A) (p : EqList y z)
+      : inR {List A} {EqList} (intersectLists x y) = inR (intersectLists x z)
+      | nil, _, _, p => idp
+      | _, nil, nil, p => idp
+      | cons a x, nil, cons a1 z, p => \let contr => (p a1).2 (here idp) \in contradiction
+      | cons a x, cons a1 y, nil, p => \let contr => (p a1).1 (here idp) \in contradiction
+      | cons a x, cons a1 y, cons a2 z, p
+        => \let p1 => decideEq a a1 | p2 => decideEq a a2 \in
+           \case \elim p1, \elim p2
+           \return
+                  inR (\case \case p1 \return Bool \with {
+                  | yes _ => true
+                  | no _ => search a y
+                  } \with {
+                  | false => intersectLists x (cons a1 y)
+                  | true => cons a (intersectLists x (cons a1 y))
+                  }) = inR (\case \case p2 \return Bool \with {
+                  | yes _ => true
+                  | no _ => search a z
+                  } \with {
+                  | false => intersectLists x (cons a2 z)
+                  | true => cons a (intersectLists x (cons a2 z))
+                  })
+           \with {
+             | yes e, yes e1 => pmap (add a) (prop1 x _ _ p)
+             | yes e, no n =>
+              \case search a z \as src
+              \return
+                inR (cons a (intersectLists x (cons a1 y))) = inR (\case src \with {
+                  | false => intersectLists x (cons a2 z)
+                  | true => cons a (intersectLists x (cons a2 z))
+                })\with {
+                | true => pmap (add a) (prop1 x _ _ p)
+                | false => {?}
+              }
+             | no n, yes e =>
+               \case search a y \as src
+                \return
+                   inR (\case src \with {
+                   | false => intersectLists x (cons a1 y)
+                   | true => cons a (intersectLists x (cons a1 y))
+                   }) = inR (cons a (intersectLists x (cons a2 z)))
+               \with {
+                 | true => pmap (add a) (prop1 x _ _ p)
+                 | false => {?}
+               }
+             | no n, no n1 =>
+              \case search a y \as src1, search a z \as src2
+              \return
+                 inR (\case src1 \with {
+                 | false => intersectLists x (cons a1 y)
+                 | true => cons a (intersectLists x (cons a1 y))
+                 }) = inR (\case src2 \with {
+                 | false => intersectLists x (cons a2 z)
+                 | true => cons a (intersectLists x (cons a2 z))
+                 })
+              \with {
+                | true, true => pmap (add a) (prop1 x _ _ p)
+                | true, false => {?}
+                | false, true => {?}
+                | false, false => prop1 x _ _ p
+              }
+           }
+  }
+
+-- 7. Мы не можем определить функция size в общем случае, но мы можем определить предикат S -> Nat -> \Prop,
+--        соответствующий \lam xs n => size xs <= n.
 --    Задайте этот предикат и докажите, что он эквивалентен обычному определению, если A -- разрешимо и S -- конечно.
 
+\func set-size-lt {S : SetSpec} (s : S) (n : Nat) => exists (\Sigma (x : S.A) (isElem x s) -> Fin n) isInj
+
 -- Optional
--- 8. Определите предикат isFin : \Type -> \Prop так, чтобы множество \Sigma (P : A -> \Prop) (isFin (\Sigma (a : A) (P A))) удовлетворяло FinSetSpec, определите этот инстанс.
+-- 8. Определите предикат isFin : \Type -> \Prop так, чтобы множество
+--    \Sigma (P : A -> \Prop) (isFin (\Sigma (a : A) (P A))) удовлетворяло FinSetSpec, определите этот инстанс.
 
 -- Optional
 -- 9. Определите NubListSet и инстанс FinSetSpec для него.
