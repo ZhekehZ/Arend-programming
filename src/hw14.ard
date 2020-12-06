@@ -1,4 +1,5 @@
 \import Data.Bool (Bool, false, true)
+\import Function.Meta ($)
 \import Logic.Meta
 \import Meta
 \import Paths.Meta
@@ -81,11 +82,62 @@
             rewriteI listSet=Set (unionListSet (rewrite listSet=Set s1) (rewrite listSet=Set s2))
 
 \func unionListSet {A : \Set} (s1 s2 : ListSet A) : ListSet A
-  | inR a, inR nil => inR a
-  | inR nil, inR a => inR a
-  | inR as1, inR (cons a as2) => add a (unionListSet (inR as1) (inR as2))
-  | eq s1 s2 r i, inR a => {?}
-  | inR as, eq s1 s2 r i => {?}
+  | inR a, inR b => inR (a ++ b)
+  | eq s1 s2 r i, inR a => lemma3 _ _ (lemma4 a r) @ i
+  | inR a, eq s1 s2 r i => lemma3 _ _ (lemma4' a r) @ i
+  \where {
+    \func \infixl 5 ++ {A : \Set} (a b : List A): List A
+      | nil, x => x
+      | x, nil => x
+      | cons a a1, cons a2 b => cons a $ cons a2 $ a1 ++ b
+
+    \func lemma1 {A : \Set} {a : A} {l1 l2 : List A} (p : a `In (l1 ++ l2)): In a l1 `Or` In a l2 \elim l1, l2, p
+      | nil, cons a1 l2, p => byRight p
+      | cons a1 l1, nil, p => byLeft p
+      | cons a1 l1, cons a2 l2, here idp => byLeft (here idp)
+      | cons a1 l1, cons a2 l2, there p => \case \elim p \with {
+        | here p => byRight (here p)
+        | there p => \case lemma1 p \with {
+          | byLeft a => byLeft (there a)
+          | byRight b => byRight (there b)
+        }
+      }
+
+    \func lemma2 {A : \Set} {a : A} (l1 l2 : List A) (p : In a l1): a `In (l1 ++ l2)
+      | cons a1 l1, nil, p => p
+      | cons a1 l1, cons a2 l2, here idp => here idp
+      | cons a1 l1, cons a2 l2, there p => there (there (lemma2 l1 l2 p))
+
+    \func lemma2' {A : \Set} {a : A} (l1 l2 : List A) (p : In a l2): a `In (l1 ++ l2)
+      | nil, cons a1 l2, p => p
+      | cons a1 l1, cons a2 l2, here idp => there (here idp)
+      | cons a1 l1, cons a2 l2, there p => there (there (lemma2' l1 l2 p))
+
+    \func lemma3 {A : \Set} (l1 l2 : List A) (p : EqList l1 l2): inR {List A} {EqList} l1 = inR l2
+      => quotientEq l1 l2 p
+
+    \func lemma4 {A : \Set} (l : List A) {l1 l2 : List A} (p : EqList l1 l2): EqList (l1 ++ l) (l2 ++ l)
+      => \lam x => (
+        \lam i => \case lemma1 i \with {
+          | byLeft a1 => lemma2 _ _ ((p x).1 a1)
+          | byRight b => lemma2' _ _ b
+        },
+        \lam i => \case lemma1 i \with {
+          | byLeft a1 => lemma2 _ _ ((p x).2 a1)
+          | byRight b => lemma2' _ _ b
+        })
+
+    \func lemma4' {A : \Set} (l : List A) {l1 l2 : List A} (p : EqList l1 l2): EqList (l ++ l1) (l ++ l2)
+      => \lam x => (
+        \lam i => \case lemma1 i \with {
+          | byLeft a1 => lemma2 _ _ a1
+          | byRight b => lemma2' _ _ ((p x).1 b)
+        },
+        \lam i => \case lemma1 i \with {
+          | byLeft a1 => lemma2 _ _ a1
+          | byRight b => lemma2' _ _ ((p x).2 b)
+        })
+  }
 
 -- 6. Определите функцию intersection {A : DecSet} : S A -> S A -> S A для произвольного S A
 --      (удовлетворяющего FinSetSpec) и для ListSet.
@@ -95,107 +147,10 @@
 
 
 \func intersectionListSet {A : DecSet} (s1 s2 : ListSet A) : ListSet A \elim s1, s2
-  | inR a, inR a1 => inR (intersectLists a a1)
-  | inR a, eq a1 a' r i => prop1 a _ _ r @ i
+  | inR a, inR a1 => {?}
+  | inR a, eq a1 a' r i => {?}
   | eq a a' r i, inR a1 => {?}
-  \where {
-    \open Data.Bool
-    \func intersectLists {A : DecSet} (l1 l2 : List A): List A \elim l1
-      | nil => nil
-      | cons a l1 => \case search a l2 \with {
-        | false => intersectLists l1 l2
-        | true => cons a (intersectLists l1 l2)
-      }
-    \func search {A : DecSet} (a : A) (l : List A): Bool
-      | a, nil => false
-      | a, cons b l => \case decideEq a b \with {
-        | yes _ => true
-        | no _ => search a l
-      }
-
-    \func prop2 {A : DecSet} (a : A) (l : List A) (p : search a l = false): Not (isElem a (inR l))
-      | a, nil, p => \lam i => contradiction
-      | a, cons a1 l, p => \lam i => \case \elim i \with {
-        | here p1 =>
-          \case decideEq a a1 \as dec
-              , p : (\case dec \with { | yes _ => true | no _ => search a l }) = false
-          \with {
-          | yes e, p2 => contradiction
-          | no n, p2 => \let t => rewrite p1 n \in contradiction
-        }
-        | there i =>
-          \case decideEq a a1 \as dec
-          , p : (\case dec \with { | yes _ => true | no _ => search a l }) = false
-          \with {
-            | yes e, p2 => contradiction
-            | no n, p2 => prop2 a l p2 i
-          }
-      }
-
-    \func prop1 {A : DecSet} (x y z : List A) (p : EqList y z)
-      : inR {List A} {EqList} (intersectLists x y) = inR (intersectLists x z)
-      | nil, _, _, p => idp
-      | _, nil, nil, p => idp
-      | cons a x, nil, cons a1 z, p => \let contr => (p a1).2 (here idp) \in contradiction
-      | cons a x, cons a1 y, nil, p => \let contr => (p a1).1 (here idp) \in contradiction
-      | cons a x, cons a1 y, cons a2 z, p
-        => \let p1 => decideEq a a1 | p2 => decideEq a a2 \in
-           \case \elim p1, \elim p2
-           \return
-                  inR (\case \case p1 \return Bool \with {
-                  | yes _ => true
-                  | no _ => search a y
-                  } \with {
-                  | false => intersectLists x (cons a1 y)
-                  | true => cons a (intersectLists x (cons a1 y))
-                  }) = inR (\case \case p2 \return Bool \with {
-                  | yes _ => true
-                  | no _ => search a z
-                  } \with {
-                  | false => intersectLists x (cons a2 z)
-                  | true => cons a (intersectLists x (cons a2 z))
-                  })
-           \with {
-             | yes e, yes e1 => pmap (add a) (prop1 x _ _ p)
-             | yes e, no n =>
-              \case search a z \as src
-              \return
-                inR (cons a (intersectLists x (cons a1 y))) = inR (\case src \with {
-                  | false => intersectLists x (cons a2 z)
-                  | true => cons a (intersectLists x (cons a2 z))
-                })\with {
-                | true => pmap (add a) (prop1 x _ _ p)
-                | false => {?}
-              }
-             | no n, yes e =>
-               \case search a y \as src
-                \return
-                   inR (\case src \with {
-                   | false => intersectLists x (cons a1 y)
-                   | true => cons a (intersectLists x (cons a1 y))
-                   }) = inR (cons a (intersectLists x (cons a2 z)))
-               \with {
-                 | true => pmap (add a) (prop1 x _ _ p)
-                 | false => {?}
-               }
-             | no n, no n1 =>
-              \case search a y \as src1, search a z \as src2
-              \return
-                 inR (\case src1 \with {
-                 | false => intersectLists x (cons a1 y)
-                 | true => cons a (intersectLists x (cons a1 y))
-                 }) = inR (\case src2 \with {
-                 | false => intersectLists x (cons a2 z)
-                 | true => cons a (intersectLists x (cons a2 z))
-                 })
-              \with {
-                | true, true => pmap (add a) (prop1 x _ _ p)
-                | true, false => {?}
-                | false, true => {?}
-                | false, false => prop1 x _ _ p
-              }
-           }
-  }
+  \where { }
 
 -- 7. Мы не можем определить функция size в общем случае, но мы можем определить предикат S -> Nat -> \Prop,
 --        соответствующий \lam xs n => size xs <= n.
