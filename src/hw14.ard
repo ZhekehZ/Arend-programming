@@ -6,7 +6,7 @@
 \import Paths.Meta
 \import Set
 \import Set.Fin
-\import Utils
+\import Utils \hiding (Bool, true, false)
 \import lect04 (true/=false)
 \import lect11 (funExt)
 \import lect12 (DecEq, equivalence=>equality, exists)
@@ -143,8 +143,8 @@
 -- 6. Определите функцию intersection {A : DecSet} : S A -> S A -> S A для произвольного S A
 --      (удовлетворяющего FinSetSpec) и для ListSet.
 
---\func intersection  {A : DecSet} {S : FinSetSpec {A}} (s1 s2 : S) : S =>
---  rewriteI listSet=Set (intersectionListSet (rewrite listSet=Set s1) (rewrite listSet=Set s2))
+\func intersection  {A : DecSet} {S : FinSetSpec {A}} (s1 s2 : S) : S =>
+  rewriteI listSet=Set (intersectionListSet {A} (rewrite (listSet=Set {S}) s1) (rewrite (listSet=Set {S}) s2))
 
 
 \func intersectionListSet {A : DecSet} (s1 s2 : ListSet A) : ListSet A \elim s1, s2
@@ -245,7 +245,6 @@
             }
         }
 
-    -- Аналогично
     \func lem2 {A : DecSet} (l : List A) {l1 l2 : List A} (p : EqList l1 l2): EqList (l1 ^^ l) (l2 ^^ l)
       | nil, {nil}, {nil}, p => Eqlist-nil^2
       | nil, {nil}, {cons a l2}, p => Eqlist-nil^2
@@ -254,7 +253,114 @@
       | cons a l, {nil}, {nil}, p => Eqlist-nil^2
       | cons a l, {nil}, {cons a1 l2}, p => \case (p a1).2 (here idp) \with {}
       | cons a l, {cons a1 l1}, {nil}, p => \case (p a1).1 (here idp) \with {}
-      | cons a l, {cons a1 l1}, {set}, p => {?}
+      | cons a l, {cons a1 l1}, {set}, p => \case decideEq a1 a \as d, idp : decideEq a1 a = d \with {
+        | yes e, p1 => transportInv (\lam z => EqList (\case \case z \return Bool \with {
+            | yes _ => true
+            | no _ => isin a1 l
+          } \with {
+            | true => cons a1 (l1 ^^ cons a l)
+            | false => l1 ^^ cons a l
+          }) (set ^^ cons a l)) p1 (\lam x =>
+            ( \lam i => \case i \with {
+              | here p2 => lem4 _ _ ((p x).1 (here p2)) (here (p2 *> e))
+              | there i1 => lem4 _ _ ((p x).1 (there (lem3 _ _ i1).1)) (lem3 _ _ i1).2
+            }
+            , \lam i => \case decideEq x a1 \with {
+              | yes e1 => here e1
+              | no n => there (lem4 _ _ (\case (p x).2 (lem3 _ _ i).1 \with {
+                | here p2 => contradiction
+                | there i1 => i1
+              }) (lem3 _ _ i).2)
+            }
+            ))
+        | no n, p1 => \case decideEq a1 a \as d, idp : decideEq a1 a = d \with {
+          | yes e, p2 => transportInv (\lam z => EqList (\case \case z \return  Bool \with {
+                        | yes _ => true
+                        | no _ => isin a1 l
+                      } \with {
+                        | true => cons a1 (l1 ^^ cons a l)
+                        | false => l1 ^^ cons a l
+                      }) (set ^^ cons a l)) p2 (\lam x =>
+              ( \lam i => \case i \with {
+                | here p3 => lem4 _ _ ((p x).1 (here p3)) (here (p3 *> e))
+                | there i1 => lem4 _ _ ((p x).1 (there (lem3 _ _ i1).1)) (lem3 _ _ i1).2
+              }
+              , \lam i => \case decideEq x a1 \with {
+                | yes e1 => here e1
+                | no n1 => there (lem4 _ _ (\case (p x).2 (lem3 _ _ i).1 \with {
+                  | here p3 => contradiction
+                  | there i1 => i1
+                }) (lem3 _ _ i).2)
+              }
+              ))
+          | no n1, p2 => \case decideEq a1 a \as d, idp : decideEq a1 a = d \with {
+            | yes e, p3 => transportInv (\lam z => EqList (\case \case z \return Bool \with {
+                          | yes _ => true
+                          | no _ => isin a1 l
+                        } \with {
+                          | true => cons a1 (l1 ^^ cons a l)
+                          | false => l1 ^^ cons a l
+                        }) (set ^^ cons a l)) p3 (\lam x =>
+                ( \lam i => \case decideEq x a1 \with {
+                  | yes e1 => lem4 _ _ ((p x).1 (here e1)) (here (e1 *> e))
+                  | no n2 => \case \elim i \with {
+                    | here p4 => contradiction
+                    | there i => lem4 _ _ ((p x).1 (there (lem3 _ _ i).1)) (lem3 _ _ i).2
+                  }
+                }
+                , \lam i => there (lem4 _ _ (\case (p x).2 (lem3 _ _ i).1 \with {
+                  | here p4 => contradiction
+                  | there i1 => i1
+                }) (lem3 _ _ i).2)))
+            | no n2, p3 => transportInv (\lam z => EqList (\case \case z \return Bool \with {
+              | yes _ => true
+              | no _ => isin a1 l
+            } \with {
+              | true => cons a1 (l1 ^^ cons a l)
+              | false => l1 ^^ cons a l
+            }) (set ^^ cons a l)) p3 (\lam x =>
+                ( \lam i => \case isin a1 l \as issi, idp : isin a1 l = issi \with {
+                  | true, p4 => \let i' => transport (\lam z => In x (\case z \with {
+                                        | true => cons a1 (l1 ^^ cons a l)
+                                        | false => l1 ^^ cons a l
+                                      })) p4 i \in \case i' \with {
+                    | here p5 => lem4 _ _ ((p x).1 (here p5)) (rewrite p5 (there (lem5 _ p4)))
+                    | there i1 => lem4 _ _ ((p x).1 (there (lem3 _ _ i1).1)) (lem3 _ _ i1).2
+                  }
+
+                  | false, p4 => \let i' => transport (\lam z => In x (\case z \with {
+                          | true => cons a1 (l1 ^^ cons a l)
+                          | false => l1 ^^ cons a l
+                        })) p4 i \in lem4 _ _ ((p x).1 (there (lem3 _ _ i').1)) (lem3 _ _ i').2
+                }
+                , \lam i => \case isin a1 l \as issi, idp : isin a1 l = issi \with {
+                  | true, p4 => transportInv (\lam z => In x (\case z \with {
+                                  | true => cons a1 (l1 ^^ cons a l)
+                                  | false => l1 ^^ cons a l
+                                })) p4 (\case decideEq x a1 \with {
+                    | yes e => here e
+                    | no n3 => there (lem4 _ _ (\case (p x).2 (lem3 _ _ i).1 \with {
+                      | here p5 => contradiction
+                      | there i1 => i1
+                    }) (lem3 _ _ i).2)
+                  })
+                  | false, p4 => transportInv (\lam z => In x (\case z \with {
+                              | true => cons a1 (l1 ^^ cons a l)
+                              | false => l1 ^^ cons a l
+                            })) p4 (lem4 _ _ (\case (p x).2 (lem3 _ _ i).1 \with {
+                    | here p5 => \let | con => rewriteI p5 (lem6 _ p4)
+                                      | con1 : In x l => \case (lem3 _ _ i).2 \with {
+                                        | here p6 => contradiction
+                                        | there i1 => i1
+                                      }
+                                 \in contradiction
+                    | there i1 => i1
+                  }) (lem3 _ _ i).2)
+                }
+                ))
+          }
+        }
+      }
 
     \func lem3 {A : DecSet} {x : A} (l1 l2 : List A) (p : x `In (l1 ^^ l2)): \Sigma (x `In` l1) (x `In` l2)
     \elim x, l1, l2, p
