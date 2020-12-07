@@ -256,7 +256,50 @@
       | cons a l, {cons a1 l1}, {nil}, p => \case (p a1).1 (here idp) \with {}
       | cons a l, {cons a1 l1}, {set}, p => {?}
 
-    \func lem3 {A : DecSet} {x : A} (l1 l2 : List A) (p : x `In (l1 ^^ l2)): \Sigma (x `In` l1) (x `In` l2) => {?}
+    \func lem3 {A : DecSet} {x : A} (l1 l2 : List A) (p : x `In (l1 ^^ l2)): \Sigma (x `In` l1) (x `In` l2)
+    \elim x, l1, l2, p
+      | x, nil, nil, ()
+      | x, cons a l1, cons a1 l2, p => \case decideEq a a1 \as d, idp : decideEq a a1 = d \with {
+        | yes e, p1 => \let p' => transport (\lam z => In x (\case \case z \return Bool \with {
+                      | yes _ => true
+                      | no _ => isin a l2
+                    } \with {
+                      | true => cons a (l1 ^^ cons a1 l2)
+                      | false => l1 ^^ cons a1 l2
+                    })) p1 p \in \case decideEq x a \with {
+          | yes e1 => (here e1, here (e1 *> e))
+          | no n => (there (\case p' \with {
+            | here p2 => contradiction
+            | there i => (lem3 _ _ i).1
+          }), there (\case p' \with {
+            | here p2 => contradiction
+            | there i => \case (lem3 _ _ i).2 \with {
+              | here p2 => contradiction
+              | there i1 => i1
+            }
+          }))
+        }
+        | no n, p1 => \let p' => transport (\lam z => In x (\case \case z \return Bool \with {
+                    | yes _ => true
+                    | no _ => isin a l2
+                  } \with {
+                    | true => cons a (l1 ^^ cons a1 l2)
+                    | false => l1 ^^ cons a1 l2
+                  })) p1 p \in \case isin a l2 \as iss, idp : isin a l2 = iss \with {
+                            | true, p2 => \let p'' => transport (\lam z => In x (\case z \with {
+                              | true => cons a (l1 ^^ cons a1 l2)
+                              | false => l1 ^^ cons a1 l2
+                            })) p2 p' \in
+                            \case p'' \with {
+                              | here p3 => (here p3, there (lem5 _ (rewrite p3 p2)))
+                              | there i => (there (lem3 _ _ i).1, (lem3 _ _ i).2)
+                            }
+                            | false, p2 => \let p'' => transport (\lam z => In x (\case z \with {
+                              | true => cons a (l1 ^^ cons a1 l2)
+                              | false => l1 ^^ cons a1 l2
+                            })) p2 p' \in (there (lem3 _ _ p'').1, (lem3 _ _ p'').2)
+        }
+      }
 
     \func lem4 {A : DecSet} {x : A} (l1 l2 : List A) (p : x `In` l1) (p2 : x `In` l2):  x `In (l1 ^^ l2)
     \elim x, l1, l2, p, p2
@@ -344,8 +387,27 @@
         })
       }
 
-    \func lem5 {A : DecSet} {x : A} (l1 : List A) (p : isin x l1 = true): In x l1 => {?}
-    \func lem6 {A : DecSet} {x : A} (l1 : List A) (p : isin x l1 = false): Not (In x l1) => {?}
+    \func lem5 {A : DecSet} {x : A} (l1 : List A) (p : isin x l1 = true): In x l1 \elim x, l1, p
+      | x, cons a l1, p => \case decideEq x a \as d, idp : decideEq x a = d \with {
+        | yes e, p1 => here e
+        | no n, p1 => \let p' => transport (\lam z => (\case z \with {
+          | yes _ => true
+          | no _ => isin x l1
+        }) = true) p1 p \in there (lem5 _ p')
+      }
+
+    \func lem6 {A : DecSet} {x : A} (l1 : List A) (p : isin x l1 = false): Not (In x l1)
+      => \lam i => \let p => lem7 _ i \in contradiction
+
+    \func lem7 {A : DecSet} {x : A} (l1 : List A) (p : In x l1): isin x l1 = true \elim x, l1, p
+      | x, cons a l1, here idp => mcases \with {
+        | yes e => idp
+        | no n => contradiction
+      }
+      | x, cons a l1, there p => mcases \with {
+        | yes e => idp
+        | no n => lem7 l1 p
+      }
   }
 
 -- 7. Мы не можем определить функция size в общем случае, но мы можем определить предикат S -> Nat -> \Prop,
