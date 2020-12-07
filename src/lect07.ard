@@ -153,7 +153,8 @@
 \func insert-perm {A : TotalPreorder} (a : A) (xs : List A)
   : Perm (cons a xs) (insert a xs) \elim xs
   | nil => perm-refl
-  | cons a1 xs => mcases \with {
+  | cons a1 xs =>
+    mcases \with {
   | inl a1<=a => perm-trans (perm-perm idp idp idp) (perm-cons idp (insert-perm a xs))
   | inr a<=a1 => perm-refl
   }
