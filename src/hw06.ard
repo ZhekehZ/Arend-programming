@@ -74,7 +74,7 @@
       | just a => idp
     }
   | monad-assoc {A B C : \Type} (m : Maybe A) (f : A -> Maybe B) (g : B -> Maybe C)
-      : >>= (>>= m f) g = >>= m (\lam x => >>= (f x) g)
+      : (>>= (>>= m f) g) = (>>= m (\lam x => >>= (f x) g))
     \elim m {
       | nothing => idp
       | just a => idp

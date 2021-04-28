@@ -36,7 +36,7 @@
 -- 3. Докажите, что vnil является нейтральным элементом для v++.
 
 
-\func vnil-rightId {A : \Type} {n : Nat} (xs : Vec A n) : transport (Vec A) (+-comm 0 n) (xs v++ vnil) = xs \elim n, xs
+\func vnil-rightId {A : \Type} {n : Nat} (xs : Vec A n) : transport (Vec A) (+-comm 0 n) (xs v++ {A} {n} {0} vnil) = xs \elim n, xs
   | 0, vnil => idp
   | suc n, vcons a xs => aux n n (+-comm 0 n) a xs xs (vnil-rightId xs)
   \where {
@@ -44,9 +44,11 @@
       (n m : Nat)
       (p : 0 + n = m)
       (a : A) (xs : Vec A n) (ys : Vec A m)
-      (t : transport (Vec A) p (xs v++ vnil) = ys)
-      : transport (Vec A) (Utils.pmap suc p) (vcons a (xs v++ vnil)) = vcons a ys \elim p
+      (t : transport (Vec A) p (v++0 xs) = ys)
+      : transport (Vec A) (Utils.pmap suc p) (vcons a (v++0 xs)) = vcons a ys \elim p
       | idp => pmap (vcons a) t
+
+    \func v++0 {A : \Type} {n : Nat} (v : Vec A n) => v++ v vnil
   }
 
 

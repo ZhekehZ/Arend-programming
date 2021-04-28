@@ -469,8 +469,10 @@
               | false => l1 ^^ cons x l2
             })
                ) p1 (mcases \with {
-          | true => there (lem4 _ _ p (here idp))
-          | false => lem4 _ _ p (here idp)
+          | true, yes _ => there (lem4 _ _ p (here idp))
+          | true, no _ => there (lem4 _ _ p (here idp))
+          | false, yes _ => lem4 _ _ p (here idp)
+          | false, no _ => lem4 _ _ p (here idp)
         })
       }
       | x, cons a l1, cons a1 l2, there p, there p2 => \case decideEq a a1 \as d, idp : decideEq a a1 = d \with {
@@ -488,8 +490,10 @@
                       | true => cons a (l1 ^^ cons a1 l2)
                       | false => l1 ^^ cons a1 l2
                     })) p1 (mcases \with {
-          | true => there (lem4 _ _ p (there p2))
-          | false => lem4 _ _ p (there p2)
+          | true, yes _ => there (lem4 _ _ p (there p2))
+          | true, no _ => there (lem4 _ _ p (there p2))
+          | false, yes _ => lem4 _ _ p (there p2)
+          | false, no _ => lem4 _ _ p (there p2)
         })
       }
 

@@ -54,7 +54,7 @@
 
 \instance TermMonad : Monad Term
   | return => var
-  | \infixl 1 >>= {A B : \Type} (t : Term A) (k : A -> Term B) : Term B \elim t {
+  | >>= {A B : \Type} (t : Term A) (k : A -> Term B) : Term B \elim t {
     | var v => k v
     | unit => unit
     | app t1 t2 => app (t1 >>= k) (t2 >>= k)
